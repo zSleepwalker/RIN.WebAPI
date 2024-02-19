@@ -277,5 +277,20 @@ namespace RIN.Core.DB
                 return false;
             }
         }
+        
+        public async Task<long> ActiveCharacterGuid(long accountId)
+        {
+            const string SELECT_SQL = @"SELECT 
+                            character_guid
+                            FROM webapi.""Characters""
+                            WHERE account_id = @accountId
+                                AND is_active = true
+                            ORDER BY last_seen_at DESC
+                            LIMIT 1";
+            
+            var commanderGuid = await DBCall(async conn => conn.QuerySingle<long>(SELECT_SQL, new { accountId }));
+
+            return commanderGuid;
+        }
     }
 }
