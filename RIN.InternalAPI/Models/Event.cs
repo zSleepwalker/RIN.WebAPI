@@ -1,4 +1,4 @@
-﻿using ProtoBuf;
+using ProtoBuf;
 
 namespace RIN.InternalAPI.Models
 {
@@ -22,27 +22,27 @@ namespace RIN.InternalAPI.Models
     public class ArmyApplicationApproved : Event
     {
         [ProtoMember(1)] public ulong  CharacterGuid { get; set; }
-        [ProtoMember(2)] public string InitiatorName { get; set; }
+        [ProtoMember(2)] public string InitiatorName { get; set; } = null!;
     }
 
     [ProtoContract]
     public class ArmyApplicationReceived : Event
     {
-        [ProtoMember(1)] public ulong[] ArmyMemberGuids { get; set; }
-        [ProtoMember(2)] public string  InitiatorName   { get; set; }
+        [ProtoMember(1)] public ulong[] ArmyMemberGuids { get; set; } = null!;
+        [ProtoMember(2)] public string  InitiatorName   { get; set; } = null!;
     }
 
     [ProtoContract]
     public class ArmyApplicationRejected : Event
     {
         [ProtoMember(1)] public ulong  CharacterGuid { get; set; }
-        [ProtoMember(2)] public string InitiatorName { get; set; }
+        [ProtoMember(2)] public string InitiatorName { get; set; } = null!;
     }
 
     [ProtoContract]
     public class ArmyApplicationsUpdated : Event
     {
-        [ProtoMember(1)] public ulong[] ArmyMemberGuids { get; set; }
+        [ProtoMember(1)] public ulong[] ArmyMemberGuids { get; set; } = null!;
     }
 
     [ProtoContract]
@@ -51,7 +51,7 @@ namespace RIN.InternalAPI.Models
         [ProtoMember(1)] public ulong  ArmyGuid      { get; set; }
         [ProtoMember(2)] public ulong  CharacterGuid { get; set; }
         [ProtoMember(3)] public bool   IsOfficer     { get; set; }
-        [ProtoMember(4)] public string ArmyTag       { get; set; }
+        [ProtoMember(4)] public string ArmyTag       { get; set; } = null!;
     }
 
     [ProtoContract]
@@ -64,25 +64,25 @@ namespace RIN.InternalAPI.Models
     public class ArmyInviteApproved : Event
     {
         [ProtoMember(1)] public ulong  ArmyGuid      { get; set; }
-        [ProtoMember(2)] public string InitiatorName { get; set; }
+        [ProtoMember(2)] public string InitiatorName { get; set; } = null!;
     }
 
     [ProtoContract]
     public class ArmyInviteReceived : Event
     {
         [ProtoMember(1)] public ulong  ArmyGuid      { get; set; }
-        [ProtoMember(2)] public string ArmyName      { get; set; }
+        [ProtoMember(2)] public string ArmyName      { get; set; } = null!;
         [ProtoMember(3)] public ulong  CharacterGuid { get; set; }
         [ProtoMember(4)] public ulong  Id            { get; set; }
-        [ProtoMember(5)] public string Message       { get; set; }
-        [ProtoMember(6)] public string InitiatorName { get; set; }
+        [ProtoMember(5)] public string Message       { get; set; } = null!;
+        [ProtoMember(6)] public string InitiatorName { get; set; } = null!;
     }
 
     [ProtoContract]
     public class ArmyInviteRejected : Event
     {
-        [ProtoMember(1)] public ulong[] ArmyMemberGuids { get; set; }
-        [ProtoMember(2)] public string  InitiatorName   { get; set; }
+        [ProtoMember(1)] public ulong[] ArmyMemberGuids { get; set; } = null!;
+        [ProtoMember(2)] public string  InitiatorName   { get; set; } = null!;
     }
 
     [ProtoContract]
@@ -101,13 +101,13 @@ namespace RIN.InternalAPI.Models
     public class ArmyTagUpdated : Event
     {
         [ProtoMember(1)] public ulong  ArmyGuid { get; set; }
-        [ProtoMember(2)] public string ArmyTag  { get; set; }
+        [ProtoMember(2)] public string ArmyTag  { get; set; } = null!;
     }
 
     [ProtoContract]
     public class CharacterVisualsUpdated : Event
     {
         [ProtoMember(1)] public ulong                          CharacterGuid                  { get; set; }
-        [ProtoMember(2)] public CharacterAndBattleframeVisuals CharacterAndBattleframeVisuals { get; set; }
+        [ProtoMember(2)] public CharacterAndBattleframeVisuals CharacterAndBattleframeVisuals { get; set; } = null!;
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace RIN.WebAPI.Models.ClientApi
 {
@@ -17,16 +17,16 @@ namespace RIN.WebAPI.Models.ClientApi
         public DateTime last_seen_at      { get; set; }
         public long     loadout_id        { get; set; }
         public int      max_frame_level   { get; set; }
-        public string   name              { get; set; }
+        public string   name              { get; set; } = null!;
         public bool     needs_name_change { get; set; }
         public int      pool_id           { get; set; }
         public short    race              { get; set; }
         public long     time_played_secs  { get; set; }
         public int      title_id          { get; set; }
-        public string   unique_name       { get; set; }
+        public string   unique_name       { get; set; } = null!;
         public DateTime updated_at        { get; set; }
         public int      voice_setId       { get; set; }
-        public string   xdata             { get; set; }
-        public string   gender            { get; set; }
+        public string   xdata             { get; set; } = null!;
+        public string   gender            { get; set; } = null!;
     }
 }

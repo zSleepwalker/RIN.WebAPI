@@ -1,10 +1,10 @@
-﻿namespace RIN.Core.ClientApi
+namespace RIN.Core.ClientApi
 {
     public class ArmyRank
     {
         public long      id             { get; set; }
         public long      army_guid      { get; set; }
-        public string    name           { get; set; }
+        public string    name           { get; set; } = null!;
         public bool      is_commander   { get; set; }
         public bool      can_invite     { get; set; }
         public bool      can_kick       { get; set; }

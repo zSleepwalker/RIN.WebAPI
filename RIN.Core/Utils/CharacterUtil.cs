@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using RIN.Core.Common;
 using RIN.Core.DB;
 using RIN.Core.Models;
@@ -40,7 +40,8 @@ namespace RIN.Core.Utils
             var genderStr = gender switch
             {
                 0 => "male",
-                1 => "female"
+                1 => "female",
+                _ => "male"
             };
 
             return genderStr;

@@ -1,10 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using RIN.Core;
 using RIN.Core.Common;
 using RIN.Core.DB;
 using RIN.Core.DB.SDB;
 using RIN.Core.Models.ClientApi;
+using RIN.WebAPI.Models.ClientApi;
 using RIN.WebAPI.Models.Config;
 using RIN.WebAPI.Utils;
 
@@ -29,9 +30,17 @@ namespace RIN.WebAPI.Controllers
             SDB = sdb;
         }
 
+        // TODO: log to db?
+        [HttpPost("ui_actions")]
+        public string ClientEvent(UiActions action)
+        {
+            Logger.LogInformation("UiAction: {@action}", action);
+            return "";
+        }
+
         [HttpGet("characters/{characterGuid}/garage_slots")]
         [R5SigAuthRequired]
-        public async Task<List<GarageSlot>> GarageSlots(long characterGuid)
+        public List<GarageSlot> GarageSlots(long characterGuid)
         {
             var slots = new List<GarageSlot>()
             {
@@ -70,7 +79,7 @@ namespace RIN.WebAPI.Controllers
                     duration    = 0,
                     id          = info.id,
                     remote_id   = info.id,
-                    name        = info.lang_name,
+                    name        = info.lang_name ?? "",
                     quanity     = 1,
                     remote_type = "ornaments",
                     prices      = new[]
@@ -94,7 +103,7 @@ namespace RIN.WebAPI.Controllers
 
         [HttpGet("trade/products/garage_slot_perk_respec")]
         [R5SigAuthRequired]
-        public async Task<object> GarageSlotPerkRespec()
+        public object GarageSlotPerkRespec()
         {
             var data = "";
 

@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Transactions;
 using Dapper;
 using RIN.Core.ClientApi;
@@ -57,7 +57,7 @@ namespace RIN.Core.DB
                 }
             );
 
-            return pageResults;
+            return pageResults!;
         }
 
         public async Task<Army?> GetArmy(long armyGuid)
@@ -270,7 +270,7 @@ namespace RIN.Core.DB
 
             var results = await DBCall(async conn => await conn.QueryAsync<ArmyRank>(SELECT_SQL, new { armyGuid }));
 
-            return results.ToList();
+            return results?.ToList() ?? new List<ArmyRank>();
         }
 
         public async Task<ArmyRank> AddArmyRank(long armyGuid, bool canPromote, bool canEdit,
@@ -284,10 +284,12 @@ namespace RIN.Core.DB
                         @isOfficer, @name, @canInvite, @canKick, @position)
                 RETURNING *;";
 
-            return await DBCall(async conn => await conn.QuerySingleAsync<ArmyRank>(
+            var result = await DBCall(async conn => await conn.QuerySingleAsync<ArmyRank>(
                 INSERT_SQL,
                 new { armyGuid, canPromote, canEdit, isOfficer, name, canInvite, canKick, position }
             ));
+
+            return result!;
         }
 
         public async Task<bool> ReassignMembersAndRemoveArmyRank(long armyGuid, long rankId, long defaultRankId)
@@ -404,7 +406,7 @@ namespace RIN.Core.DB
                 }
             );
 
-            return pageResults;
+            return pageResults!;
         }
 
         public async Task<ArmyRank> GetArmyRankForMember(long armyGuid, long characterGuid)
@@ -430,7 +432,8 @@ namespace RIN.Core.DB
                 INNER JOIN webapi.""Characters"" c on c.character_guid = am.character_guid
                 WHERE am.character_guid = @characterGuid;";
 
-            return await DBCall(async conn => await conn.QuerySingleAsync<ArmyRank>(SELECT_SQL, new { armyGuid, characterGuid }));
+            var result = await DBCall(async conn => await conn.QuerySingleAsync<ArmyRank>(SELECT_SQL, new { armyGuid, characterGuid }));
+            return result!;
         }
 
         public async Task<bool> UpdateArmyRankForMembers(long armyGuid, long initiatorGuid, long rankId, long[] characterGuids)
@@ -497,7 +500,7 @@ namespace RIN.Core.DB
 
             var results = await DBCall(async conn => await conn.QueryAsync<ArmyApplication>(SELECT_SQL, new { armyGuid }));
 
-            return results;
+            return results ?? Enumerable.Empty<ArmyApplication>();
         }
 
          public async Task<bool> ApproveArmyApplicationsOrInvites(long armyGuid, long initiatorGuid, long[] applicationIds)

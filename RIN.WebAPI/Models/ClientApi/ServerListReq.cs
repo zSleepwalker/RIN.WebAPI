@@ -1,7 +1,7 @@
-﻿namespace RIN.WebAPI.Models.ClientApi
+namespace RIN.WebAPI.Models.ClientApi
 {
     public class ServerListReq
     {
-        public string build { get; set; }
+        public string build { get; set; } = null!;
     }
 }

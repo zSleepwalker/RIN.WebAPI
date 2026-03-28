@@ -1,4 +1,4 @@
-﻿using RIN.WebAPI.Models.ClientApi;
+using RIN.WebAPI.Models.ClientApi;
 
 namespace RIN.Core.Models.ClientApi;
 
@@ -11,7 +11,7 @@ public class Leaderboard : PageResults<LeaderboardResult>
 public class LeaderboardResult
 {
     public string? name           { get; set; }
-    public string  rank           { get; set; }
-    public string  character_name { get; set; }
-    public string  current_value  { get; set; }
+    public string  rank           { get; set; } = null!;
+    public string  character_name { get; set; } = null!;
+    public string  current_value  { get; set; } = null!;
 }

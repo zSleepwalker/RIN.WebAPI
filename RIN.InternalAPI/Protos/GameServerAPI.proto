@@ -1,6 +1,6 @@
 syntax = "proto3";
 package RIN;
-import "google/protobuf/timestamp.proto";
+import "protobuf-net/bcl.proto"; // schema for protobuf-net's handling of core .NET types
 
 message ArmyApplicationApproved {
    uint64 CharacterGuid = 1;
@@ -74,6 +74,18 @@ message CharacterAndBattleframeVisuals {
 message CharacterID {
    int64 ID = 1;
 }
+message CharacterInventoryResponse {
+   repeated CharacterItem Items = 1;
+   repeated CharacterResource Resources = 2;
+}
+message CharacterItem {
+   uint64 Guid = 1;
+   uint32 SdbId = 2;
+}
+message CharacterResource {
+   uint32 SdbId = 1;
+   uint32 Quantity = 2;
+}
 message CharacterVisuals {
    int32 id = 1;
    int32 race = 2;
@@ -103,6 +115,14 @@ message Command {
       SaveLgvRaceFinish SaveLgvRaceFinish = 2;
    }
 }
+message ConsumeResourceReq {
+   uint64 CharacterId = 1;
+   uint32 SdbId = 2;
+   uint32 Quantity = 3;
+}
+message ConsumeResourceResp {
+   bool Success = 1;
+}
 message Event {
    oneof subtype {
       ArmyApplicationApproved ArmyApplicationApproved = 1;
@@ -121,11 +141,11 @@ message Event {
    }
 }
 message PingReq {
-   .google.protobuf.Timestamp SentTime = 1;
+   .bcl.DateTime SentTime = 1;
 }
 message PingResp {
-   .google.protobuf.Timestamp ClientSentTime = 1;
-   .google.protobuf.Timestamp ServerReciveTime = 2;
+   .bcl.DateTime ClientSentTime = 1;
+   .bcl.DateTime ServerReciveTime = 2;
 }
 message PlayerBattleframeVisuals {
    repeated WebDecal decals = 1;
@@ -170,7 +190,9 @@ message WebIdValueColorId {
    WebColorId color = 2;
 }
 service GameServerAPI {
+   rpc ConsumeCharacterResource (ConsumeResourceReq) returns (ConsumeResourceResp);
    rpc GetCharacterAndBattleframeVisuals (CharacterID) returns (CharacterAndBattleframeVisuals);
+   rpc GetCharacterInventory (CharacterID) returns (CharacterInventoryResponse);
    rpc Ping (PingReq) returns (PingResp);
    rpc Stream (stream Command) returns (stream Event);
 }

@@ -1,4 +1,5 @@
-﻿using System.Data;
+using System.Data;
+using Microsoft.Extensions.Logging;
 using Dapper;
 using ProtoBuf;
 using RIN.Core.ClientApi;
@@ -70,52 +71,56 @@ namespace RIN.Core.DB
 						                        ON Battleframes.id = webapi.""Characters"".current_battleframe_guid
 		                        WHERE webapi.""Characters"".account_id = @accountId";
 
-            var results = await DBCall(async conn => conn.Query<dynamic>(SELECT_SQL, new {accountId}));
+            var results = await DBCall(conn => conn.QueryAsync<dynamic>(SELECT_SQL, new {accountId}));
 
-            var chars = new List<Character>(results.Count());
-            foreach (var result in results)
+            var chars = new List<Character>(results?.Count() ?? 0);
+            if (results != null)
             {
-                long? deleted_at = result.deleted_at == null ? null : ((DateTimeOffset)result.deleted_at).ToUnixTimeSeconds();
-                long? expires_in = result.expires_in == null ? null : ((DateTimeOffset)result.expires_in).ToUnixTimeSeconds() - DateTimeOffset.Now.ToUnixTimeSeconds();
-
-                var character = new Character
+                foreach (var result in results)
                 {
-                    character_guid    = result.character_guid,
-                    name              = result.name,
-                    unique_name       = result.unique_name,
-                    is_dev            = result.is_dev,
-                    is_active         = result.is_active,
-                    created_at        = result.created_at,
-                    title_id          = result.title_id,
-                    time_played_secs  = result.time_played_secs ?? 0,
-                    needs_name_change = result.needs_name_change,
-                    max_frame_level   = result.max_frame_level,
-                    frame_sdb_id      = result.frame_sdb_id,
-                    current_level     = result.current_level,
-                    gender            = result.gender,
-                    current_gender    = CharacterUtil.GenderNumToString(result.gender),
-                    elite_rank        = result.elite_rank,
-                    last_seen_at      = result.last_seen_at,
-                    gear              = new List<GearSlot>(),
-                    expires_in        = expires_in,
-                    deleted_at        = deleted_at,
-                    race              = CharacterUtil.RaceIdToString(result.race),
-                    migrations        = new List<int>()
-                };
+                    long? deleted_at = result.deleted_at == null ? null : ((DateTimeOffset)result.deleted_at).ToUnixTimeSeconds();
+                    long? expires_in = result.expires_in == null ? null : ((DateTimeOffset)result.expires_in).ToUnixTimeSeconds() - DateTimeOffset.Now.ToUnixTimeSeconds();
 
-                if ((result.visuals as byte[]).Length > 0) {
-                    var charaterVisuals = Serializer.Deserialize<CharacterVisuals>((result.visuals as byte[]).AsSpan());
-                    
-                    charaterVisuals.ornaments ??= new List<WebId>();
+                    var character = new Character
+                    {
+                        character_guid    = result.character_guid,
+                        name              = result.name,
+                        unique_name       = result.unique_name,
+                        is_dev            = result.is_dev,
+                        is_active         = result.is_active,
+                        created_at        = result.created_at,
+                        title_id          = result.title_id,
+                        time_played_secs  = result.time_played_secs ?? 0,
+                        needs_name_change = result.needs_name_change,
+                        max_frame_level   = result.max_frame_level,
+                        frame_sdb_id      = result.frame_sdb_id,
+                        current_level     = result.current_level,
+                        gender            = result.gender,
+                        current_gender    = CharacterUtil.GenderNumToString(result.gender),
+                        elite_rank        = result.elite_rank,
+                        last_seen_at      = result.last_seen_at,
+                        gear              = new List<GearSlot>(),
+                        expires_in        = expires_in,
+                        deleted_at        = deleted_at,
+                        race              = CharacterUtil.RaceIdToString(result.race),
+                        migrations        = new List<int>()
+                    };
 
-                    character.visuals = new CharacterBattleframeCombinedVisuals();
-                    charaterVisuals.ApplyToCharacterVisuals(character.visuals);
+                    if (result.visuals is byte[] visuals && visuals.Length > 0)
+                    {
+                        var charaterVisuals = Serializer.Deserialize<CharacterVisuals>(visuals.AsSpan());
 
-                    var defaultBattleframeVisuals = PlayerBattleframeVisuals.CreateDefault();
-                    defaultBattleframeVisuals.ApplyToCharacterVisuals(character.visuals);
+                        charaterVisuals.ornaments ??= new List<WebId>();
+
+                        character.visuals = new CharacterBattleframeCombinedVisuals();
+                        charaterVisuals.ApplyToCharacterVisuals(character.visuals);
+
+                        var defaultBattleframeVisuals = PlayerBattleframeVisuals.CreateDefault();
+                        defaultBattleframeVisuals.ApplyToCharacterVisuals(character.visuals);
+                    }
+
+                    chars.Add(character);
                 }
-
-                chars.Add(character);
             }
 
             return chars;
@@ -138,7 +143,7 @@ namespace RIN.Core.DB
 	                                    ON am.army_rank_id = ar.army_rank_id
 	                        WHERE c.character_guid = @charId";
 
-            var result = await DBCall(async conn => conn.Query<BasicCharacterInfo, byte[], (BasicCharacterInfo, CharacterVisuals)>(
+            var result = await DBCall(conn => conn.QueryAsync<BasicCharacterInfo, byte[], (BasicCharacterInfo, CharacterVisuals)>(
                 SELECT_SQL,
                 map: (charinfo, visuals) =>
                 {
@@ -147,9 +152,9 @@ namespace RIN.Core.DB
                 },
                 splitOn: "visuals",
                 param: new { charId })
-            .Single());
+            );
 
-            return result;
+            return result?.Single() ?? default;
         }
 
         public async Task<bool> UpdateCharacterVisuals(long charId, CharacterVisuals visuals)
@@ -215,9 +220,9 @@ namespace RIN.Core.DB
                             WHERE account_id = @accountId
                             AND character_guid = @characterGuid";
 
-            var char_select_results = await DBCall(async conn => conn.Query<dynamic>(CHAR_SELECT_SQL, new { accountId, characterGuid }));
+            var char_select_results = await DBCall(conn => conn.QueryAsync<dynamic>(CHAR_SELECT_SQL, new { accountId, characterGuid }));
 
-            if (char_select_results.Count() == 0)
+            if ((char_select_results?.Count() ?? 0) == 0)
             {
                 return new Error() { code = Error.Codes.ERR_CHAR_NOT_FOUND, message = "Can't find a character with that GUID" };
             }
@@ -230,10 +235,10 @@ namespace RIN.Core.DB
                             WHERE am.character_guid = @characterGuid AND ar.is_commander = true";
 
             var isCommanderResults = await DBCall(
-                async conn => await conn.QueryAsync<dynamic>(IS_COMMANDER_SQL, new { characterGuid })
+                conn => conn.QueryAsync<dynamic>(IS_COMMANDER_SQL, new { characterGuid })
             );
 
-            if (isCommanderResults.Any())
+            if (isCommanderResults?.Any() ?? false)
             {
                 return new Error() { code = Error.Codes.ERR_CANNOT_DELETE_COMMANDER, message = "Character is an army commander" };
             }
@@ -246,9 +251,9 @@ namespace RIN.Core.DB
                             WHERE account_id = @accountId
                             AND character_guid = @characterGuid";
 
-            var select_results = await DBCall(async conn => conn.Query<dynamic>(SELECT_SQL, new { accountId, characterGuid }));
+            var select_results = await DBCall(conn => conn.QueryAsync<dynamic>(SELECT_SQL, new { accountId, characterGuid }));
 
-            if (select_results.Count() == 1)
+            if ((select_results?.Count() ?? 0) == 1)
             {
                 return new Error() { code = Error.Codes.ERR_CHAR_DELETED, message = "Character is already marked as deleted" };
             }
@@ -261,7 +266,7 @@ namespace RIN.Core.DB
                         (character_guid, account_id, deleted_at, expires_in)
                         VALUES (@characterGuid, @accountId, @deleted_at, @expires_in)";
 
-            var insert_results = await DBCall(async conn => conn.Query<dynamic>(INSERT_SQL, new { characterGuid, accountId, deleted_at, expires_in }));
+            var insert_results = await DBCall(conn => conn.QueryAsync<dynamic>(INSERT_SQL, new { characterGuid, accountId, deleted_at, expires_in }));
 
             // Uncomment to instantly delete character instead of waiting (for dev-use only)
             /*
@@ -292,9 +297,9 @@ namespace RIN.Core.DB
                             WHERE webapi.""Characters"".account_id = @accountId
                             AND webapi.""Characters"".character_guid = @characterGuid";
 
-            var select_results = await DBCall(async conn => conn.Query<dynamic>(SELECT_SQL, new { accountId, characterGuid }));
+            var select_results = await DBCall(conn => conn.QueryAsync<dynamic>(SELECT_SQL, new { accountId, characterGuid }));
 
-            if (select_results.Count() == 0)
+            if ((select_results?.Count() ?? 0) == 0)
             {
                 return new Error() { code = Error.Codes.ERR_CHAR_NOT_FOUND, message = "Can't find a character with that GUID" };
             }
@@ -304,7 +309,7 @@ namespace RIN.Core.DB
                             WHERE account_id = @accountId
                             AND character_guid = @characterGuid";
 
-            var delete_results = await DBCall(async conn => conn.Query<dynamic>(DELETE_SQL, new { accountId, characterGuid }));
+            var delete_results = await DBCall(conn => conn.QueryAsync<dynamic>(DELETE_SQL, new { accountId, characterGuid }));
 
             return new Error() { code = Error.Codes.SUCCESS };
         }
@@ -318,9 +323,9 @@ namespace RIN.Core.DB
                             WHERE name = @name
                             OR unique_name = @unique_name";
 
-            var select_results = await DBCall(async conn => conn.Query<dynamic>(SELECT_SQL, new { name, unique_name }));
+            var select_results = await DBCall(conn => conn.QueryAsync<dynamic>(SELECT_SQL, new { name, unique_name }));
 
-            if (select_results.Count() == 0)
+            if ((select_results?.Count() ?? 0) == 0)
             {
                 return true;
             }
@@ -342,9 +347,9 @@ namespace RIN.Core.DB
                 selectSql += " AND army_guid = @armyGuid";
             }
 
-            var results = await DBCall(async conn => await conn.QueryAsync<dynamic>(selectSql, new { characterGuid, armyGuid }));
+            var results = await DBCall(conn => conn.QueryAsync<dynamic>(selectSql, new { characterGuid, armyGuid }));
 
-            return results.Any();
+            return results?.Any() ?? false;
         }
 
         public async Task<IEnumerable<ArmyApplication>> GetPersonalArmyApplications(long characterGuid)
@@ -355,7 +360,7 @@ namespace RIN.Core.DB
                 INNER JOIN webapi.""Armies"" a USING(army_guid)
                 WHERE character_guid = @characterGuid AND inviter_guid IS NULL";
 
-            return await DBCall(async conn => await conn.QueryAsync<ArmyApplication>(SELECT_SQL, new {characterGuid}));
+            return await DBCall(conn => conn.QueryAsync<ArmyApplication>(SELECT_SQL, new { characterGuid })) ?? Enumerable.Empty<ArmyApplication>();
         }
 
         public async Task<IEnumerable<ArmyApplication>> GetPersonalArmyInvites(long characterGuid)
@@ -366,9 +371,96 @@ namespace RIN.Core.DB
                 INNER JOIN webapi.""Armies"" a USING(army_guid)
                 WHERE character_guid = @characterGuid AND inviter_guid IS NOT NULL";
 
-            var results = await DBCall(async conn => await conn.QueryAsync<ArmyApplication>(SELECT_SQL, new {characterGuid}));
+            var results = await DBCall(conn => conn.QueryAsync<ArmyApplication>(SELECT_SQL, new { characterGuid }));
 
-            return results;
+            return results ?? Enumerable.Empty<ArmyApplication>();
+        }
+        public async Task<long> AddCharacterItem(long characterGuid, int sdbId)
+        {
+            const string INSERT_SQL = @"INSERT INTO webapi.""CharacterItems"" (item_guid, character_guid, sdb_id)
+                                        VALUES (webapi.create_entity_guid(253), @characterGuid, @sdbId) RETURNING item_guid;";
+
+            var result = await DBCall(conn => conn.QuerySingleAsync<long>(INSERT_SQL, new { characterGuid, sdbId }),
+                exception =>
+                {
+                    Logger.LogError(exception, "Error adding item {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    throw exception;
+                });
+            return result;
+        }
+
+        public async Task<bool> AddOrUpdateCharacterResource(long characterGuid, int sdbId, int quantity)
+        {
+            const string UPSERT_SQL = @"INSERT INTO webapi.""CharacterResources"" (character_guid, sdb_id, quantity)
+                                        VALUES (@characterGuid, @sdbId, @quantity)
+                                        ON CONFLICT (character_guid, sdb_id)
+                                        DO UPDATE SET quantity = webapi.""CharacterResources"".quantity + EXCLUDED.quantity;";
+
+            var result = await DBCall(conn => conn.ExecuteAsync(UPSERT_SQL, new { characterGuid, sdbId, quantity }),
+                exception =>
+                {
+                    Logger.LogError(exception, "Error adding/updating resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    throw exception;
+                });
+            return result > 0;
+        }
+
+        public async Task<bool> ConsumeCharacterResource(long characterGuid, int sdbId, int quantity)
+        {
+            // 1. Try consuming from CharacterResources (stackables)
+            const string UPDATE_SQL = @"UPDATE webapi.""CharacterResources""
+                                        SET quantity = quantity - @quantity
+                                        WHERE character_guid = @characterGuid AND sdb_id = @sdbId AND quantity >= @quantity;";
+
+            var resourceAffected = await DBCall(conn => conn.ExecuteAsync(UPDATE_SQL, new { characterGuid, sdbId, quantity }),
+                exception =>
+                {
+                    Logger.LogError(exception, "Error consuming resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    throw exception;
+                });
+
+            if (resourceAffected > 0)
+            {
+                // Cleanup empty stacks
+                const string DELETE_SQL = @"DELETE FROM webapi.""CharacterResources"" WHERE character_guid = @characterGuid AND sdb_id = @sdbId AND quantity <= 0;";
+                await DBCall(conn => conn.ExecuteAsync(DELETE_SQL, new { characterGuid, sdbId }),
+                    exception =>
+                    {
+                        Logger.LogError(exception, "Error cleaning up resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                        throw exception;
+                    });
+
+                return true;
+            }
+
+            // 2. Try consuming from CharacterItems (individual items)
+            // Delete 'quantity' number of items with matching SdbId
+            const string DELETE_ITEMS_SQL = @"DELETE FROM webapi.""CharacterItems""
+                                               WHERE item_guid IN (
+                                                   SELECT item_guid FROM webapi.""CharacterItems""
+                                                   WHERE character_guid = @characterGuid AND sdb_id = @sdbId
+                                                   LIMIT @quantity
+                                               );";
+
+            var itemsAffected = await DBCall(conn => conn.ExecuteAsync(DELETE_ITEMS_SQL, new { characterGuid, sdbId, quantity }),
+                exception =>
+                {
+                    Logger.LogError(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    throw exception;
+                });
+
+            return itemsAffected >= quantity;
+        }
+
+        public async Task<(IEnumerable<(long item_guid, int sdb_id)> items, IEnumerable<(int sdb_id, int quantity)> resources)> GetCharacterInventory(long characterGuid)
+        {
+            const string ITEMS_SQL = @"SELECT item_guid, sdb_id FROM webapi.""CharacterItems"" WHERE character_guid = @characterGuid;";
+            const string RES_SQL = @"SELECT sdb_id, quantity FROM webapi.""CharacterResources"" WHERE character_guid = @characterGuid;";
+
+            var items = await DBCall(conn => conn.QueryAsync<(long item_guid, int sdb_id)>(ITEMS_SQL, new { characterGuid }));
+            var resources = await DBCall(conn => conn.QueryAsync<(int sdb_id, int quantity)>(RES_SQL, new { characterGuid }));
+
+            return (items!, resources!);
         }
     }
 }

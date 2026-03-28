@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,17 +9,17 @@ namespace RIN.Core.Common
     public class GarageSlot
     {
         public int id { get; set; }
-        public string name { get; set; }
+        public string name { get; set; } = null!;
         public long character_guid { get; set; }
-        public string garage_type { get; set; }
+        public string garage_type { get; set; } = null!;
         public long item_guid { get; set; }
-        public List<EquipmentSlot> equipped_slots { get; set; }
-        public SlotLimits limits { get; set; }
-        public List<Decal> decals { get; set; }
+        public List<EquipmentSlot> equipped_slots { get; set; } = new();
+        public SlotLimits limits { get; set; } = null!;
+        public List<Decal> decals { get; set; } = new();
         public int visual_loadout_id { get; set; }
         public int warpaint_id { get; set; }
-        public List<WarpaintPattern> warpaintpatterns { get; set; }
-        public List<VisualOverride> visual_overrides { get; set; }
+        public List<WarpaintPattern> warpaintpatterns { get; set; } = new();
+        public List<VisualOverride> visual_overrides { get; set; } = new();
         public bool unlocked { get; set; }
         public int expires_in_secs { get; set; }
     }
@@ -41,7 +41,7 @@ namespace RIN.Core.Common
     public class WarpaintPattern
     {
         public int sdb_id { get; set; }
-        public float[] transform { get; set; }
+        public float[] transform { get; set; } = null!;
         public int usage { get; set; }
     }
 
@@ -49,7 +49,7 @@ namespace RIN.Core.Common
     {
         public int sdb_id { get; set; }
         public uint color { get; set; }
-        public float[] transform { get; set; }
+        public float[] transform { get; set; } = null!;
     }
 
     public class VisualOverride

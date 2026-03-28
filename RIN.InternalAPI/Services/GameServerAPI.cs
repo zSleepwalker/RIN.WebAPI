@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Grpc.Core;
 using Npgsql;
 using RIN.Core.DB;
@@ -17,7 +17,7 @@ namespace RIN.InternalAPI.Services
             Logger = logger;
         }
 
-        public async ValueTask<PingResp> Ping(PingReq req)
+        public ValueTask<PingResp> Ping(PingReq req)
         {
             var resp = new PingResp
             {
@@ -25,7 +25,7 @@ namespace RIN.InternalAPI.Services
                 ServerReciveTime = DateTime.UtcNow
             };
 
-            return resp;
+            return new ValueTask<PingResp>(resp);
         }
 
         public async ValueTask<CharacterAndBattleframeVisuals> GetCharacterAndBattleframeVisuals(CharacterID req)
@@ -41,6 +41,38 @@ namespace RIN.InternalAPI.Services
             };
 
             return resp;
+        }
+
+        public async ValueTask<CharacterInventoryResponse> GetCharacterInventory(CharacterID req)
+        {
+            var dbInventory = await DB.GetCharacterInventory(req.ID);
+            var resp = new CharacterInventoryResponse();
+
+            foreach (var item in dbInventory.items)
+            {
+                resp.Items.Add(new CharacterItem
+                {
+                    Guid = (ulong)item.item_guid,
+                    SdbId = (uint)item.sdb_id
+                });
+            }
+
+            foreach (var resource in dbInventory.resources)
+            {
+                resp.Resources.Add(new CharacterResource
+                {
+                    SdbId = (uint)resource.sdb_id,
+                    Quantity = (uint)resource.quantity
+                });
+            }
+
+            return resp;
+        }
+
+        public async ValueTask<ConsumeResourceResp> ConsumeCharacterResource(ConsumeResourceReq req)
+        {
+            var success = await DB.ConsumeCharacterResource((long)req.CharacterId, (int)req.SdbId, (int)req.Quantity);
+            return new ConsumeResourceResp { Success = success };
         }
 
         public async Task Stream(IAsyncStreamReader<Command> commands, IServerStreamWriter<Event> events, ServerCallContext context)

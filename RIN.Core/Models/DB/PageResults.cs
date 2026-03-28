@@ -1,9 +1,9 @@
-﻿namespace RIN.WebAPI.Models.ClientApi
+namespace RIN.WebAPI.Models.ClientApi
 {
     public class PageResults<T>
     {
-        public string  page        { get; set; }
+        public string  page        { get; set; } = null!;
         public long    total_count { get; set; }
-        public List<T> results     { get; set; }
+        public List<T> results     { get; set; } = null!;
     }
 }

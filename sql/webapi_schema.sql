@@ -1675,6 +1675,41 @@ ALTER TABLE ONLY webapi."VipData"
 
 
 --
--- PostgreSQL database dump complete
+-- Name: CharacterItems; Type: TABLE; Schema: webapi; Owner: tmwadmin
 --
 
+CREATE TABLE webapi."CharacterItems" (
+    item_guid bigint NOT NULL,
+    character_guid bigint NOT NULL,
+    sdb_id integer NOT NULL
+);
+
+ALTER TABLE webapi."CharacterItems" OWNER TO tmwadmin;
+
+ALTER TABLE ONLY webapi."CharacterItems"
+    ADD CONSTRAINT "CharacterItems_pkey" PRIMARY KEY (item_guid);
+
+ALTER TABLE ONLY webapi."CharacterItems"
+    ADD CONSTRAINT "CharacterItems_character_guid_fkey" FOREIGN KEY (character_guid) REFERENCES webapi."Characters"(character_guid) ON DELETE CASCADE;
+
+--
+-- Name: CharacterResources; Type: TABLE; Schema: webapi; Owner: tmwadmin
+--
+
+CREATE TABLE webapi."CharacterResources" (
+    character_guid bigint NOT NULL,
+    sdb_id integer NOT NULL,
+    quantity integer NOT NULL
+);
+
+ALTER TABLE webapi."CharacterResources" OWNER TO tmwadmin;
+
+ALTER TABLE ONLY webapi."CharacterResources"
+    ADD CONSTRAINT "CharacterResources_pkey" PRIMARY KEY (character_guid, sdb_id);
+
+ALTER TABLE ONLY webapi."CharacterResources"
+    ADD CONSTRAINT "CharacterResources_character_guid_fkey" FOREIGN KEY (character_guid) REFERENCES webapi."Characters"(character_guid) ON DELETE CASCADE;
+
+--
+-- PostgreSQL database dump complete
+--

@@ -1,10 +1,10 @@
-﻿namespace RIN.Core
+namespace RIN.Core
 {
     public class Error
     {
         public Error() { }
 
-        public Error(string errorCode, string errorMsg = null)
+        public Error(string errorCode, string? errorMsg = null)
         {
             code    = errorCode;
             message = errorMsg;
@@ -66,8 +66,8 @@
             public bool silent { get; set; } = false;
         }
 
-        public string    code     { get; set; }
-        public string    message  { get; set; }
+        public string    code     { get; set; } = null!;
+        public string?   message  { get; set; }
         public ErrorData err_data { get; set; } = new ErrorData();
     }
 }

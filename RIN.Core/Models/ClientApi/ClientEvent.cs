@@ -1,4 +1,4 @@
-﻿using System.Runtime.Serialization;
+using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 
 namespace RIN.Core.ClientApi
@@ -17,14 +17,14 @@ namespace RIN.Core.ClientApi
         
         public struct Data
         {
-            public string message { get; set; }
-            public string source  { get; set; }
-            public string data    { get; set; }
+            public string? message { get; set; }
+            public string? source  { get; set; }
+            public string? data    { get; set; }
         }
         
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public Events @event { get; set; }
-        public string action { get; set; }
+        public string action { get; set; } = null!;
         public Data   data   { get; set; }
     }
 }

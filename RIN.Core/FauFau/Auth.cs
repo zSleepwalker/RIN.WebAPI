@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Text;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -163,7 +163,7 @@ namespace FauFau.Net.Web
 
         private class Token
         {
-            public SHA1CryptoServiceProvider SHA1   = new();
+            public SHA1                      SHA1   = System.Security.Cryptography.SHA1.Create();
             public byte[]                    Buffer = new byte[1024];
         }
     }

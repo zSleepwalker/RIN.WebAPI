@@ -10,7 +10,7 @@ public partial class ClientApiV2
 {
     [HttpGet("characters/{characterId}/mail")]
     [R5SigAuthRequired]
-    public async Task<Mail> GetMail([FromQuery] uint page = 1, long characterId = 0)
+    public Mail GetMail([FromQuery] uint page = 1, long characterId = 0)
     {
         if (characterId <= 0)
             return new Mail();
@@ -65,7 +65,7 @@ public partial class ClientApiV2
 
     [HttpPost("characters/{characterId}/mail/mail_check")]
     [R5SigAuthRequired]
-    public async Task<bool> MailCheck(MailCheck check, long characterId = 0)
+    public bool MailCheck(MailCheck check, long characterId = 0)
     {
         /*
         if (characterId <= 0 || string.IsNullOrEmpty(recipient) || recipient_guid <= 0)
@@ -77,7 +77,7 @@ public partial class ClientApiV2
     
     [HttpPost("characters/{characterId}/mail/{messageId}/claim_attachments")]
     [R5SigAuthRequired]
-    public async Task<object> ClaimMailAttachments(long characterId = 0, long messageId = 0)
+    public object ClaimMailAttachments(long characterId = 0, long messageId = 0)
     {
         if (characterId <= 0 || characterId != GetCid())
             return ReturnError(
@@ -86,7 +86,7 @@ public partial class ClientApiV2
                 StatusCodes.Status401Unauthorized
             );
         
-        if (messageId <= 0 || !(await isMailOwner(characterId, messageId)))
+        if (messageId <= 0 || !isMailOwner(characterId, messageId))
             return ReturnError(
                 Error.Codes.ERR_UNKNOWN,
                 "Bad request data",
@@ -136,7 +136,7 @@ public partial class ClientApiV2
     
     [HttpPost("characters/{characterId}/mail/batch/delete")]
     [R5SigAuthRequired]
-    public async Task<object> GetMail(MailMarkRead messageIds, long characterId = 0)
+    public object BatchDeleteMail(MailMarkRead messageIds, long characterId = 0)
     {
         if (characterId <= 0)
             return ReturnError(
@@ -150,7 +150,7 @@ public partial class ClientApiV2
     
     [HttpPost("characters/{characterId}/mail/{messageId}/delete")]
     [R5SigAuthRequired]
-    public async Task<object> DeleteMail(long characterId = 0, long messageId = 0)
+    public object DeleteMail(long characterId = 0, long messageId = 0)
     {
         if (characterId  <= 0 || messageId <= 0)
             return Ok();
@@ -166,7 +166,7 @@ public partial class ClientApiV2
     
     [HttpPost("characters/{characterId}/mail/batch/mark_read")]
     [R5SigAuthRequired]
-    public async Task<bool> BatchMarkMailRead(MailMarkRead messageIds, long characterId = 0)
+    public bool BatchMarkMailRead(MailMarkRead messageIds, long characterId = 0)
     {
         if (characterId <= 0)
             return false;
@@ -180,7 +180,7 @@ public partial class ClientApiV2
     
     [HttpPost("characters/{characterId}/mail/{messageId}/mark_read")]
     [R5SigAuthRequired]
-    public async Task<bool> MarkMailRead(long characterId = 0, long messageId = 0)
+    public bool MarkMailRead(long characterId = 0, long messageId = 0)
     {
         if (characterId  <= 0 || messageId <= 0)
             return false;
@@ -192,7 +192,7 @@ public partial class ClientApiV2
         return true;
     }
 
-    public async Task<bool> isMailOwner(long characterId, long messageId)
+    public bool isMailOwner(long characterId, long messageId)
     {
         /*
          * SELECT COUNT(id) FROM mailbox WHERE mid = messageId AND cid = characterId

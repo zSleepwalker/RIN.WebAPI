@@ -1,4 +1,4 @@
-﻿namespace RIN.Core.Utils
+namespace RIN.Core.Utils
 {
     // Firefall warpaint color fun
     public class FColor
@@ -13,7 +13,7 @@
             int r = (rgb            >> 11) * 255 + 16;
             int g = ((rgb & 0x07E0) >> 5)  * 255 + 32;
             int b = (rgb & 0x001F)         * 255 + 16;
-            return (uint) (0xFF000000 | (byte) ((r / 32 + r) / 32) << 16 | (byte) ((g / 64 + g) / 64) << 8 | (byte) ((b / 32 + b) / 32));
+            return 0xFF000000 | (uint)(byte)((r / 32 + r) / 32) << 16 | (uint)(byte)((g / 64 + g) / 64) << 8 | (uint)(byte)((b / 32 + b) / 32);
         }
     }
 }

@@ -1,9 +1,9 @@
-﻿namespace RIN.Core.Models.ClientApi
+namespace RIN.Core.Models.ClientApi
 {
     public class ZoneImages
     {
-        public string thumbnail { get; set; }
-        public string[] screenshot { get; set; }
-        public string lfg { get; set; }
+        public string thumbnail { get; set; } = null!;
+        public string[] screenshot { get; set; } = System.Array.Empty<string>();
+        public string lfg { get; set; } = null!;
     }
 }

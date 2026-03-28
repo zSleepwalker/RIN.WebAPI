@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Linq;
 using System.Threading.Tasks;
@@ -36,7 +36,7 @@ namespace RIN.Core.DB.SDB
             var result = await DBCall(conn => conn.QueryAsync<NewCharaterColors>(SELECT_SQL, new {eyeColorId, skinColorId, hairColorId}),
                 exception => Logger.LogError($"Error getting colors for new character with ids (eye: {eyeColorId}, skin: {skinColorId}, hair: {hairColorId}) due to: {exception}"));
 
-            return result.FirstOrDefault();
+            return result?.FirstOrDefault();
         }
 
         public async Task<IEnumerable<CosmeticInfo>> GetOrnamentsInfoList()
@@ -47,7 +47,7 @@ namespace RIN.Core.DB.SDB
 
             var result = await DBCall(conn => conn.QueryAsync<CosmeticInfo>(SELECT_SQL, new { }));
 
-            return result;
+            return result ?? Enumerable.Empty<CosmeticInfo>();
         }
     }
 }

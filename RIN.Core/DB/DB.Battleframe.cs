@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -18,14 +18,14 @@ namespace RIN.Core.DB
                             RETURNING id;";
 
             byte[] visualsData = Utils.MiscUtils.ToProtoBuffByteArray(visuals);
-            var result = await DBCall(async conn => conn.Query<long>(INSERT_SQL, new { characterId, battleframeSdId, visuals = visualsData }),
+            var result = await DBCall(conn => conn.QueryAsync<long>(INSERT_SQL, new { characterId, battleframeSdId, visuals = visualsData }),
                 exception =>
                 {
-                    Logger.LogError("Error creating a battleframe loadout ({battleframeSdId}) for {characterId} due to: {exception}", characterId, battleframeSdId, exception);
+                    Logger.LogError(exception, "Error creating a battleframe loadout ({battleframeSdId}) for {characterId} due to: {exception}", characterId, battleframeSdId, exception);
                     throw exception;
                 });
 
-            return result.Single();
+            return result?.Single() ?? -1;
         }
 
         public async Task<bool> UpdateBattleframeVisuals(long battleframeId, PlayerBattleframeVisuals visuals)

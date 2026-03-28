@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Net.Security;
 using System.Threading.Tasks;
@@ -110,7 +110,7 @@ namespace RIN.Core.DB
                 return r;
             });
 
-            return result;
+            return result!;
         }
     }
 }

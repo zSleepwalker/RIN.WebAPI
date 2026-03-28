@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Transactions;
@@ -20,10 +20,9 @@ namespace RIN.WebAPI.Controllers
 {
     public partial class ClientApiV2
     {
-        // Todo: get from db
         [HttpGet("characters/list")]
         [R5SigAuthRequired]
-        public async Task<CharacterListResp> ListCharacters()
+        public async Task<ActionResult<CharacterListResp>> ListCharacters()
         {
             var resp = new CharacterListResp
             {
@@ -32,13 +31,17 @@ namespace RIN.WebAPI.Controllers
                 name_change_cost = 0,
             };
 
-            var loginResult = await Db.GetLoginData(GetUid()); // temp
+            var loginResult = await Db.GetLoginData(GetUid());
+            if (loginResult == null) return Unauthorized();
+
             resp.is_dev     = loginResult.is_dev;
             resp.characters = await Db.GetCharactersForAccount(loginResult.account_id);
 
             var accountMTX        = await Db.GetAccountMTXData(loginResult.account_id);
-            resp.rb_balance       = accountMTX.rb_balance;
-            resp.name_change_cost = accountMTX.name_change_cost;
+            if (accountMTX != null) {
+                resp.rb_balance       = accountMTX.rb_balance;
+                resp.name_change_cost = accountMTX.name_change_cost;
+            }
 
             return resp;
         }
@@ -48,35 +51,41 @@ namespace RIN.WebAPI.Controllers
         public async Task<object> Undelete(long characterGuid)
         {
             var loginResult = await Db.GetLoginData(GetUid());
-            var restore_result = Db.UndeleteCharacterById(loginResult.account_id, characterGuid);
+            if (loginResult == null) return Unauthorized();
 
-            if (restore_result.Result.code == Error.Codes.SUCCESS)
+            var restore_result = await Db.UndeleteCharacterById(loginResult.account_id, characterGuid);
+
+            if (restore_result.code == Error.Codes.SUCCESS)
             {
                 return true;
             }
             else
             {
-                return ReturnError(restore_result.Result, 404);
+                return ReturnError(restore_result, 404);
             }
         }
 
         [HttpGet("characters/{characterGuid}/visual_loadouts")]
         [R5SigAuthRequired]
-        public async Task<List<PlayerVisualLoadout>> VisualLoadouts(long characterGuid)
+        public async Task<ActionResult<List<PlayerVisualLoadout>>> VisualLoadouts(long characterGuid)
         {
             var playerLoadout = await Db.GetBasicCharacterAndVisualData(characterGuid);
+            if (playerLoadout.info == null) return NotFound();
+
             var loadout       = playerLoadout.visuals.AsPlayerVisualLoadout(characterGuid);
             var result        = new List<PlayerVisualLoadout> { loadout };
             return result;
         }
 
-        // TODO Verify ownership, and do purshaing for unowned items
         [HttpPost("characters/{characterGuid}/visual_loadouts/{loadoutIdx}/purchase_and_update")]
         [R5SigAuthRequired]
         public async Task<object> PurchaseAndUpdateVisualLoadout(long characterGuid, int loadoutIdx, [FromBody] PlayerVisualLoadout updates)
         {
             var playerLoadout   = await Db.GetBasicCharacterAndVisualData(characterGuid);
+            if (playerLoadout.info == null) return NotFound();
+
             var colors          = await SDB.GetNewCharactersColors(updates.eye_color_id, updates.skin_color_id, updates.hair_color_id);
+            if (colors == null) return BadRequest();
 
             playerLoadout.visuals = CharacterUtil.UpdateCharacterVisualsFromGarage(playerLoadout.visuals, updates, colors);
 

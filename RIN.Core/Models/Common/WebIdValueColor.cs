@@ -1,4 +1,4 @@
-﻿using ProtoBuf;
+using ProtoBuf;
 
 namespace RIN.Core.Common
 {
@@ -6,7 +6,7 @@ namespace RIN.Core.Common
     public class WebIdValueColor
     {
         [ProtoMember(1)] public int      id    { get; set; }
-        [ProtoMember(2)] public WebColor value { get; set; }
+        [ProtoMember(2)] public WebColor value { get; set; } = null!;
 
         public WebIdValueColor()
         {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -96,7 +96,7 @@ namespace RIN.WebAPI.Controllers
             //Logger.LogInformation("CreateAccount {@req}", req);
 
             var birthday  = DateTime.Parse(req.birthday);
-            var accountId = Db.RegisterNewAccount(req.email, req.password, req.country, birthday, req.referral_key, req.email_optin);
+            var accountId = await Db.RegisterNewAccount(req.email, req.password, req.country, birthday, req.referral_key, req.email_optin);
 
             return new { };
         }
@@ -111,6 +111,7 @@ namespace RIN.WebAPI.Controllers
             }
             var uid = HttpUtility.UrlDecode(GetRed5Sig().UID.ToString());
             var loginResult = await Db.GetLoginData(uid);
+            if (loginResult == null) return Unauthorized();
 
             long accountID = loginResult.account_id;
             bool success = await Db.UpdateLanguage(accountID, request.language);
@@ -131,7 +132,7 @@ namespace RIN.WebAPI.Controllers
         // TODO: Store these in the account database to pull from
         [HttpGet("accounts/character_slots")]
         [R5SigAuthRequired]
-        public async Task<object> CharacterSlots()
+        public object CharacterSlots()
         {
             var resp = new List<LockedSlots>();
             resp.Add(new LockedSlots() { rb_cost = 0 });
@@ -145,7 +146,7 @@ namespace RIN.WebAPI.Controllers
         // TODO: Handle incrementing the character_limit field in the database and subtract an entry in LockedSlots
         [HttpPost("accounts/character_slots")]
         [R5SigAuthRequired]
-        public async Task<object> CharacterSlotsUnlock(LockedSlots req)
+        public object CharacterSlotsUnlock(LockedSlots req)
         {
             // TODO: Verify user can afford purchase and then remove red beans from account
 

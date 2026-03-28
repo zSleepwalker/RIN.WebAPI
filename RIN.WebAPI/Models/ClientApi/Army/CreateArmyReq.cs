@@ -1,10 +1,10 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace RIN.WebAPI.Models.ClientApi
 {
     public class CreateArmyReq
     {
-        private string _name;
+        private string _name = null!;
 
         [StringLength(maximumLength: 32, MinimumLength = 3,
             ErrorMessage = "The name must must have between {2} and {1} characters.")]

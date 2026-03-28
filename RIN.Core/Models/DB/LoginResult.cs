@@ -1,4 +1,4 @@
-﻿namespace RIN.Core.DB
+namespace RIN.Core.DB
 {
     public class LoginResult
     {
@@ -9,8 +9,8 @@
         public short    character_limit { get; set; }
         public bool     is_vip          { get; set; }
         public long     vip_expiration  { get; set; }
-        public string   secret          { get; set; }
-        public string   error           { get; set; }
-        public string   error_msg       { get; set; }
+        public string   secret          { get; set; } = null!;
+        public string   error           { get; set; } = null!;
+        public string   error_msg       { get; set; } = null!;
     }
 }

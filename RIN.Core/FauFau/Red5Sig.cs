@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
@@ -18,7 +18,7 @@ namespace FauFau.Net.Web
         private const string USER_AUTH_SALT        = @"-red5salt-7nc9bsj4j734ughb8r8dhb8938h8by987c4f7h47b";
         private const int    VERSION               = 2;
 
-        private static readonly SHA1Managed Sha1Hasher = new SHA1Managed();
+        private static readonly SHA1 Sha1Hasher = SHA1.Create();
 
         // Values used in the header
         public ref struct QsValues
@@ -80,7 +80,7 @@ namespace FauFau.Net.Web
         public static ReadOnlySpan<char> GenerateUserId(ReadOnlySpan<char> email, bool urlEncode = false)
         {
             int    length     = email.Length + USER_ID_SALT.Length;
-            char[] pooledBuff = null;
+            char[]? pooledBuff = null;
             Span<char> preHashed = length > MAX_STACK_STRING_SIZE
                 ? (pooledBuff = ArrayPool<char>.Shared.Rent(length))
                 : stackalloc char[length];
@@ -103,7 +103,7 @@ namespace FauFau.Net.Web
         public static ReadOnlySpan<char> GenerateSecret(ReadOnlySpan<char> email, ReadOnlySpan<char> password)
         {
             var    length     = email.Length + password.Length + USER_AUTH_SALT.Length + 1;
-            char[] pooledBuff = null;
+            char[]? pooledBuff = null;
             Span<char> preHashed = length > MAX_STACK_STRING_SIZE
                 ? (pooledBuff = ArrayPool<char>.Shared.Rent(length))
                 : stackalloc char[length];

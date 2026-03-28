@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -33,7 +33,7 @@ namespace RIN.WebAPI.Controllers
         public async Task<NewCharaterColors> GetNewCharactersColors(int eyeColorId, int skinColorId, int hairColorId)
         {
             var result = await Sdb.GetNewCharactersColors(eyeColorId, skinColorId, hairColorId);
-            return result;
+            return result!;
         }
         
         [HttpGet("RegisterAccount")]
@@ -44,31 +44,31 @@ namespace RIN.WebAPI.Controllers
         }
         
         [HttpGet("TestException")]
-        public async Task TestException()
+        public void TestException()
         {
             throw new TmwException();
         }
         
         [HttpGet("TestException2")]
-        public async Task TestException2()
+        public void TestException2()
         {
             throw new TmwException(Error.Codes.ERR_NAME_IN_USE, "Test exception with a custom message");
         }
 
         [HttpPost("UpdateCharaterAperance")]
-        public async Task UpdateCharaterAperance(long charId, CharacterVisuals visuals)
+        public void UpdateCharaterAperance(long charId, CharacterVisuals visuals)
         {
             var result = Db.UpdateCharacterVisuals(charId, visuals);
         }
 
         [HttpPost("UpdateBattleframeAperance")]
-        public async Task UpdateBattleframeAperance(long bfId, PlayerBattleframeVisuals visuals)
+        public void UpdateBattleframeAperance(long bfId, PlayerBattleframeVisuals visuals)
         {
             var result = Db.UpdateBattleframeVisuals(bfId, visuals);
         }
 
         [HttpPost("AddBattleframeLoadout")]
-        public async Task AddBattleframeLoadout(long charId, int battleframe_sdb_id, PlayerBattleframeVisuals? visuals)
+        public void AddBattleframeLoadout(long charId, int battleframe_sdb_id, PlayerBattleframeVisuals? visuals)
         {
             visuals = visuals ?? PlayerBattleframeVisuals.CreateDefault();
             var result = Db.CreateBattleframeLoadout(charId, battleframe_sdb_id, visuals);

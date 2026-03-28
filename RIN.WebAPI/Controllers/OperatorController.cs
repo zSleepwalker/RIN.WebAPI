@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,7 +30,7 @@ namespace RIN.WebAPI.Controllers
         }
         
         [HttpGet("/api/v1/products/Firefall_Beta")]
-        public async Task<BuildInfo> BuildInfo()
+        public BuildInfo BuildInfo()
         {
             var buildInfo = new BuildInfo
             {
@@ -45,7 +45,7 @@ namespace RIN.WebAPI.Controllers
         
         [HttpGet]
         [Route("/check")]
-        public async Task<Hosts> Check([FromQuery] CheckReq args)
+        public Hosts Check([FromQuery] CheckReq args)
         {
             var baseUrl     = WebConfig.BaseURL;
 
@@ -69,7 +69,7 @@ namespace RIN.WebAPI.Controllers
         }
 
         [HttpGet("/clientapi/motd")]
-        public async Task<MessageOfTheDay> MOTD()
+        public MessageOfTheDay MOTD()
         {
             var message = new MessageOfTheDay
             {

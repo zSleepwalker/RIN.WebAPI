@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using ProtoBuf;
 using RIN.Core.ClientApi;
 using RIN.Core.Common;
@@ -11,10 +11,10 @@ namespace RIN.Core.DB
     {
         [ProtoMember(1)] public List<WebDecal>  decals            { get; set; } = new();
         [ProtoMember(2)] public int             warpaint_id       { get; set; }
-        [ProtoMember(3)] public List<uint>      warpaint          { get; set; }
-        [ProtoMember(4)] public List<int>       decalgradients    { get; set; }
-        [ProtoMember(5)] public List<int>       warpaint_patterns { get; set; }
-        [ProtoMember(6)] public List<int>       visual_overrides  { get; set; }
+        [ProtoMember(3)] public List<uint>      warpaint          { get; set; } = new();
+        [ProtoMember(4)] public List<int>       decalgradients    { get; set; } = new();
+        [ProtoMember(5)] public List<int>       warpaint_patterns { get; set; } = new();
+        [ProtoMember(6)] public List<int>       visual_overrides  { get; set; } = new();
         
         public void ApplyToCharacterVisuals(CharacterBattleframeCombinedVisuals cVisuals)
         {

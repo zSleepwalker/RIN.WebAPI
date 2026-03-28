@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Dapper;
 using Microsoft.Extensions.Logging;
@@ -13,7 +13,7 @@ namespace RIN.Core.DB
         protected DbConnectionSettings Config;
         protected readonly ILogger    Logger;
 
-        public    string ConnStr;
+        public    string ConnStr = null!;
         protected bool   LogDbTimes;
         
         public DbBase(IOptions<DbConnectionSettings> config, ILogger<DbBase> logger)
@@ -22,7 +22,7 @@ namespace RIN.Core.DB
             Logger        = logger;
         }
         
-        private async Task<int> Execute(string sql, object prams, Action<Exception> onError = null!)
+        private async Task<int> Execute(string sql, object prams, Action<Exception>? onError = null)
         {
             try {
                 await using var conn = new NpgsqlConnection(ConnStr);
@@ -36,7 +36,7 @@ namespace RIN.Core.DB
             }
         }
 
-        public async Task<T> DBCall<T>(Func<NpgsqlConnection, Task<T>> context, Action<Exception> onError = null!, [CallerMemberName] string functionName = null)
+        public async Task<T?> DBCall<T>(Func<NpgsqlConnection, Task<T>> context, Action<Exception>? onError = null, [CallerMemberName] string? functionName = null)
         {
             try {
                 var             sw   = Stopwatch.StartNew();
@@ -55,7 +55,7 @@ namespace RIN.Core.DB
                 onError?.Invoke(e);
                 Logger.LogError($"{functionName}: {e}");
                 
-                return default;
+                return default!;
             }
         }
     }

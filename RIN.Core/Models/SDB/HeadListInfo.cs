@@ -1,11 +1,11 @@
-﻿namespace RIN.Core.SDB
+namespace RIN.Core.SDB
 {
     public class HeadListInfo
     {
         public int    head_id           { get; set; }
-        public string sex               { get; set; }
+        public string sex               { get; set; } = null!;
         public byte   race_id           { get; set; }
         public byte   player_selectable { get; set; }
-        public string lang_name         { get; set; }
+        public string lang_name         { get; set; } = null!;
     }
 }

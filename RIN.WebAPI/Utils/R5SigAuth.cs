@@ -1,4 +1,4 @@
-﻿using FauFau.Net.Web;
+using FauFau.Net.Web;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Options;
@@ -45,14 +45,17 @@ namespace RIN.WebAPI.Utils
             // TODO: Cache the users uuid to account id to skip a db call
             var loginResult = await Db.GetLoginData(uid);
             if (loginResult == null)
+            {
                 context.Result = CreateError(Error.Codes.ERR_INCORRECT_USERPASS);
+                return;
+            }
 
             var authed = Auth.Verify(loginResult.secret, str.AsSpan());
             if (!authed)
                 context.Result = CreateError(Error.Codes.ERR_INCORRECT_USERPASS);
         }
 
-        private ObjectResult CreateError(string code, string msg = null)
+        private ObjectResult CreateError(string code, string? msg = null)
         {
             var error         = new Error(code, msg);
             var result        = new ObjectResult(error);

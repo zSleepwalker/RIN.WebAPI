@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using RIN.Core;
 using RIN.WebAPI.Utils;
 
@@ -40,6 +40,16 @@ namespace RIN.WebAPI.Controllers
             }
 
             return await Db.GetPersonalArmyInvites(characterGuid);
+        }
+
+        [HttpPost("characters/{characterGuid}/garage_slots/{garageSlotId}/perks")]
+        [R5SigAuthRequired]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public object SetGarageSlotPerks(long characterGuid, int garageSlotId, [FromBody] object body)
+        {
+            // TODO: persist perk selections to the database
+            Logger.LogInformation("SetGarageSlotPerks: characterGuid={characterGuid}, garageSlotId={garageSlotId}, body={@body}", characterGuid, garageSlotId, body);
+            return Content("", "application/json");
         }
 
         [HttpGet("characters/{characterGuid}/leaderboards/{leaderboardId}")]

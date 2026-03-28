@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using RIN.Core.Models.ClientApi;
 
 namespace RIN.Core.DB;
@@ -96,6 +96,6 @@ public partial class DB
         var result = await DBCall(async conn => await conn.QuerySingleAsync<LeaderboardResult>(
             SELECT_SQL, new { leaderboardId, characterGuid }));
 
-        return result;
+        return result!;
     }
 }
