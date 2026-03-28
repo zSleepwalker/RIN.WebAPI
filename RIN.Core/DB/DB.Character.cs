@@ -453,6 +453,13 @@ namespace RIN.Core.DB
                                                    LIMIT @quantity
                                                );";
 
+            var itemsAffected = await DBCall(conn => conn.ExecuteAsync(DELETE_ITEMS_SQL, new { characterGuid, sdbId, quantity }),
+                exception =>
+                {
+                    Logger.LogError(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    throw exception;
+                });
+
             if (itemsAffected >= quantity)
             {
                 await NotifyInventoryUpdate(characterGuid);

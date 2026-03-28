@@ -138,7 +138,11 @@ message Event {
       ArmyRanksUpdated ArmyRanksUpdated = 11;
       ArmyTagUpdated ArmyTagUpdated = 12;
       CharacterVisualsUpdated CharacterVisualsUpdated = 13;
+      InventoryUpdated InventoryUpdated = 14;
    }
+}
+message InventoryUpdated {
+   uint64 CharacterGuid = 1;
 }
 message PingReq {
    .bcl.DateTime SentTime = 1;
