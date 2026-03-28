@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.Extensions.Logging;
 using Dapper;
+using System.Text.Json;
 using ProtoBuf;
 using RIN.Core.ClientApi;
 using RIN.Core.Common;
@@ -35,6 +36,8 @@ namespace RIN.Core.DB
             if (result.Item1 == -1) {
                 throw new TmwException(result.Item2, result.Item2);
             }
+
+            await SendWelcomeMail(result.Item1);
 
             return result.Item1;
         }
@@ -386,6 +389,8 @@ namespace RIN.Core.DB
                     Logger.LogError(exception, "Error adding item {sdbId} for character {characterGuid}", sdbId, characterGuid);
                     throw exception;
                 });
+
+            await NotifyInventoryUpdate(characterGuid);
             return result;
         }
 
@@ -402,6 +407,11 @@ namespace RIN.Core.DB
                     Logger.LogError(exception, "Error adding/updating resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
                     throw exception;
                 });
+
+            if (result > 0)
+            {
+                await NotifyInventoryUpdate(characterGuid);
+            }
             return result > 0;
         }
 
@@ -430,6 +440,7 @@ namespace RIN.Core.DB
                         throw exception;
                     });
 
+                await NotifyInventoryUpdate(characterGuid);
                 return true;
             }
 
@@ -442,14 +453,13 @@ namespace RIN.Core.DB
                                                    LIMIT @quantity
                                                );";
 
-            var itemsAffected = await DBCall(conn => conn.ExecuteAsync(DELETE_ITEMS_SQL, new { characterGuid, sdbId, quantity }),
-                exception =>
-                {
-                    Logger.LogError(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
-                    throw exception;
-                });
+            if (itemsAffected >= quantity)
+            {
+                await NotifyInventoryUpdate(characterGuid);
+                return true;
+            }
 
-            return itemsAffected >= quantity;
+            return false;
         }
 
         public async Task<(IEnumerable<(long item_guid, int sdb_id)> items, IEnumerable<(int sdb_id, int quantity)> resources)> GetCharacterInventory(long characterGuid)
@@ -461,6 +471,22 @@ namespace RIN.Core.DB
             var resources = await DBCall(conn => conn.QueryAsync<(int sdb_id, int quantity)>(RES_SQL, new { characterGuid }));
 
             return (items!, resources!);
+        }
+
+        public async Task ProcessCharacterDeletionQueue()
+        {
+            await DBCall(conn => conn.ExecuteAsync(@"SELECT webapi.""ProcessCharacterDeletionQueue""()"),
+                exception =>
+                {
+                    Logger.LogError(exception, "Error processing character deletion queue");
+                    throw exception;
+                });
+        }
+        public async Task NotifyInventoryUpdate(long characterGuid)
+        {
+            var payload = System.Text.Json.JsonSerializer.Serialize(new { CharacterGuid = (ulong)characterGuid });
+            var notifySql = $@"NOTIFY events, 'InventoryUpdated->{payload}'";
+            await DBCall(conn => conn.ExecuteAsync(notifySql));
         }
     }
 }

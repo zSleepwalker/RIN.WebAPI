@@ -56,6 +56,8 @@ builder.Services.Configure<DbConnectionSettings>(builder.Configuration.GetSectio
 builder.Services.AddSingleton<DB>();
 builder.Services.AddSingleton<SDB>();
 
+builder.Services.AddHostedService<CharacterCleanupService>();
+
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

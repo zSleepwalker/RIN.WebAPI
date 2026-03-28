@@ -16,6 +16,7 @@ namespace RIN.InternalAPI.Models
     [ProtoInclude(11, typeof(ArmyRanksUpdated))]
     [ProtoInclude(12, typeof(ArmyTagUpdated))]
     [ProtoInclude(13, typeof(CharacterVisualsUpdated))]
+    [ProtoInclude(14, typeof(InventoryUpdated))]
     public abstract class Event;
 
     [ProtoContract]
@@ -102,6 +103,12 @@ namespace RIN.InternalAPI.Models
     {
         [ProtoMember(1)] public ulong  ArmyGuid { get; set; }
         [ProtoMember(2)] public string ArmyTag  { get; set; } = null!;
+    }
+
+    [ProtoContract]
+    public class InventoryUpdated : Event
+    {
+        [ProtoMember(1)] public ulong CharacterGuid { get; set; }
     }
 
     [ProtoContract]
