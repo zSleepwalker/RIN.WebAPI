@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Net.Security;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Dapper;
 using FauFau.Net.Web;
 using RIN.Core.DB;
@@ -111,6 +112,46 @@ namespace RIN.Core.DB
             });
 
             return result!;
+        }
+
+        public async Task<int> GetCharacterLimit(long accountId)
+        {
+            const string SELECT_SQL = @"SELECT character_limit FROM webapi.""Accounts"" WHERE account_id = @accountId";
+            return await DBCall(conn => conn.ExecuteScalarAsync<int>(SELECT_SQL, new { accountId }));
+        }
+
+        public async Task<(bool success, string error)> IncrementCharacterLimit(long accountId, int rbCost, int maxSlots)
+        {
+            return await DBCall(async conn =>
+            {
+                using var transaction = conn.BeginTransaction();
+                try
+                {
+                    const string SELECT_SQL = @"SELECT rb_balance, character_limit FROM webapi.""Accounts"" WHERE account_id = @accountId FOR UPDATE";
+                    var account = await conn.QueryFirstOrDefaultAsync<dynamic>(SELECT_SQL, new { accountId }, transaction);
+
+                    if (account == null) return (false, "Account not found");
+                    if (account.character_limit == -1) return (false, "Account already has unlimited slots");
+                    if (account.rb_balance < rbCost) return (false, "Not enough Red Beans");
+                    if (account.character_limit >= maxSlots) return (false, "Already at maximum character slots");
+
+                    const string UPDATE_SQL = @"UPDATE webapi.""Accounts"" 
+                                                SET character_limit = character_limit + 1, 
+                                                    rb_balance = rb_balance - @rbCost 
+                                                WHERE account_id = @accountId";
+                    
+                    await conn.ExecuteAsync(UPDATE_SQL, new { accountId, rbCost }, transaction);
+                    transaction.Commit();
+                    
+                    return (true, string.Empty);
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    Logger.LogError(ex, "Error incrementing character limit for account {accountId}", accountId);
+                    return (false, "An error occurred while processing the purchase");
+                }
+            });
         }
     }
 }

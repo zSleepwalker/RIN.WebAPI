@@ -80,8 +80,8 @@ namespace RIN.WebAPI.Controllers
                 reason = new List<string>()
             };
 
-            if (nameData.name.Length > ServerDefaults.CharaterNameMaxLength) data.reason.Add(Error.Codes.ERR_NAME_TOO_LONG);
-            if (nameData.name.Length < ServerDefaults.CharaterNameMinLength) data.reason.Add(Error.Codes.ERR_NAME_TOO_SHORT);
+            if (nameData.name.Length > ServerDefaults.CharacterNameMaxLength) data.reason.Add(Error.Codes.ERR_NAME_TOO_LONG);
+            if (nameData.name.Length < ServerDefaults.CharacterNameMinLength) data.reason.Add(Error.Codes.ERR_NAME_TOO_SHORT);
 
             if (data.reason.Count == 0 && Char.IsDigit(nameData.name[0]))
             {
@@ -93,8 +93,16 @@ namespace RIN.WebAPI.Controllers
                 data.reason.Add(Error.Codes.ERR_INVALID_CHARACTER);
             }
 
-            // TODO: Check if name is blocked (reserved or contains profanity)
-            // Both of these checks most likely should use new database tables that contains a list of blocked names
+            if (data.reason.Count == 0 && CharacterUtil.IsReservedName(nameData.name))
+            {
+                data.reason.Add(Error.Codes.ERR_NAME_RESERVED);
+            }
+
+            if (data.reason.Count == 0 && CharacterUtil.IsNameProfane(nameData.name))
+            {
+                data.reason.Add(Error.Codes.ERR_NAME_PROFANITY);
+            }
+
             var isfree_result = await Db.CheckIfNameIsFree(nameData.name);
 
             if (isfree_result == false)
@@ -156,11 +164,20 @@ namespace RIN.WebAPI.Controllers
         [R5SigAuthRequired]
         public async Task<object> Characters(CreateCharacterReq reqData)
         {
-            // TODO: Validate item inputs like heads etc
+            // Validate character name
+            var nameValidation = await ValidateName(new ValidateNameReq { name = reqData.name });
+            if (!nameValidation.valid)
+            {
+                return ReturnError(new Error(Error.Codes.ERR_NAME_INVALID, string.Join(", ", nameValidation.reason)), 400);
+            }
+
             const byte DEFAULT_RACE = 0;
 
             var colors      = await Sdb.GetNewCharactersColors(reqData.eye_color_id, reqData.skin_color_id, reqData.hair_color_id);
             if (colors == null) return ReturnError(new Error(Error.Codes.ERR_INVALID_CHARACTER), 400);
+
+            var assetsValid = await Sdb.ValidateNewCharacterAssets(reqData.head, reqData.voice_set);
+            if (!assetsValid) return ReturnError(new Error(Error.Codes.ERR_INVALID_CHARACTER), 400);
 
             var loginResult = await Db.GetLoginData(GetUid()); // temp
             if (loginResult == null) return ReturnError(new Error(Error.Codes.ERR_INCORRECT_USERPASS), 401);

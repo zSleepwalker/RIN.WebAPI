@@ -54,12 +54,10 @@ namespace RIN.WebAPI.Controllers
                     expires_at = 0
                 },
                 created_at      = new DateTimeOffset(loginResult.created_at).ToUnixTimeSeconds(),
-                character_limit = loginResult.character_limit,
+                character_limit = loginResult.character_limit == -1 ? 10 : (loginResult.character_limit == 0 ? ServerDefaults.CharacterLimitPerAccount : loginResult.character_limit),
                 is_vip          = false,
                 vip_expiration  = -1,
             };
-
-            loginData.character_limit = loginData.character_limit != -1 ? loginData.character_limit : ServerDefaults.CharaterLimitPerAccount;
 
             await Db.UpdateLastLoginTime(loginResult.account_id);
 
@@ -129,30 +127,47 @@ namespace RIN.WebAPI.Controllers
 
 
         // Lists out each locked slot along with purchase cost that the account can unlock
-        // TODO: Store these in the account database to pull from
         [HttpGet("accounts/character_slots")]
         [R5SigAuthRequired]
-        public object CharacterSlots()
+        public async Task<object> CharacterSlots()
         {
+            var uid = GetUid();
+            var loginResult = await Db.GetLoginData(uid);
+            if (loginResult == null) return ReturnError(Error.Codes.ERR_UNKNOWN, "Account not found");
+
+            var currentLimit = await Db.GetCharacterLimit(loginResult.account_id);
+            var maxSlots = 10;
+            var slotCost = 100;
+
             var resp = new List<LockedSlots>();
-            resp.Add(new LockedSlots() { rb_cost = 0 });
-            resp.Add(new LockedSlots() { rb_cost = 0 });
-            resp.Add(new LockedSlots() { rb_cost = 0 });
+            int availableToUnlock = currentLimit == -1 ? 0 : Math.Max(0, maxSlots - currentLimit);
+            
+            for (int i = 0; i < availableToUnlock; i++)
+            {
+                resp.Add(new LockedSlots() { rb_cost = slotCost });
+            }
+
             return resp;
         }
 
         // Process the character slot unlocked purchase
-        // If this does not return an error, the client will automatically add an additional character slot for the player
-        // TODO: Handle incrementing the character_limit field in the database and subtract an entry in LockedSlots
         [HttpPost("accounts/character_slots")]
         [R5SigAuthRequired]
-        public object CharacterSlotsUnlock(LockedSlots req)
+        public async Task<object> CharacterSlotsUnlock(LockedSlots req)
         {
-            // TODO: Verify user can afford purchase and then remove red beans from account
+            var uid = GetUid();
+            var loginResult = await Db.GetLoginData(uid);
+            if (loginResult == null) return ReturnError(Error.Codes.ERR_UNKNOWN, "Account not found");
 
-            bool purchase_error = false;
-            if (purchase_error)
-                return ReturnError(Error.Codes.ERR_UNKNOWN, "Error completing purchase");
+            var slotCost = 100;
+            var maxSlots = 10;
+
+            var result = await Db.IncrementCharacterLimit(loginResult.account_id, slotCost, maxSlots);
+
+            if (!result.success)
+            {
+                return ReturnError(Error.Codes.ERR_UNKNOWN, result.error);
+            }
 
             return true;
         }

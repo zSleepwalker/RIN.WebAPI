@@ -46,6 +46,8 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.InvalidModelStateResponseFactory = actionContext => new TmwBadRequestObjectResult(actionContext.ModelState);
 });
 
+builder.Services.AddMemoryCache();
+
 // Config sections
 builder.Services.Configure<WebApiConfigSettings>(builder.Configuration.GetSection(WebApiConfigSettings.NAME));
 builder.Services.Configure<DevServerSettings>(builder.Configuration.GetSection(DevServerSettings.NAME));

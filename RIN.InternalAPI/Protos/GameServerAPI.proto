@@ -77,10 +77,17 @@ message CharacterID {
 message CharacterInventoryResponse {
    repeated CharacterItem Items = 1;
    repeated CharacterResource Resources = 2;
+   repeated CharacterLoadout Loadouts = 3;
 }
 message CharacterItem {
    uint64 Guid = 1;
    uint32 SdbId = 2;
+}
+message CharacterLoadout {
+   int32 LoadoutId = 1;
+   int32 ChassisSdbId = 2;
+   string Visuals = 3;
+   string SlottedItems = 4;
 }
 message CharacterResource {
    uint32 SdbId = 1;
@@ -114,6 +121,14 @@ message Command {
       SaveGameSessionData SaveGameSessionData = 1;
       SaveLgvRaceFinish SaveLgvRaceFinish = 2;
    }
+}
+message ConsumeItemReq {
+   uint64 CharacterId = 1;
+   uint32 SdbId = 2;
+   uint32 Quantity = 3;
+}
+message ConsumeItemResp {
+   bool Success = 1;
 }
 message ConsumeResourceReq {
    uint64 CharacterId = 1;
@@ -194,6 +209,7 @@ message WebIdValueColorId {
    WebColorId color = 2;
 }
 service GameServerAPI {
+   rpc ConsumeCharacterItem (ConsumeItemReq) returns (ConsumeItemResp);
    rpc ConsumeCharacterResource (ConsumeResourceReq) returns (ConsumeResourceResp);
    rpc GetCharacterAndBattleframeVisuals (CharacterID) returns (CharacterAndBattleframeVisuals);
    rpc GetCharacterInventory (CharacterID) returns (CharacterInventoryResponse);

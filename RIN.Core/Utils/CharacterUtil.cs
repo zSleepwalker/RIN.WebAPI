@@ -73,6 +73,28 @@ namespace RIN.Core.Utils
             return !ValidChars.IsMatch(name);
         }
 
+        public static bool IsReservedName(string name)
+        {
+            var reserved = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase)
+            {
+                "Admin", "Administrator", "GameMaster", "GM", "System", "Support", "Red5", "Red5Studios", "Firefall"
+            };
+            return reserved.Contains(name);
+        }
+
+        public static bool IsNameProfane(string name)
+        {
+            // Basic profanity filter
+            // In a real scenario, this would check against a large list or use a service
+            var blocked = new[] 
+            { 
+                "fuck", "shit", "asshole", "nigger", "faggot", "cunt", "pussy", "dick", "cock", "bastard", "bitch" 
+            };
+            
+            var normalized = name.ToLowerInvariant().Replace(" ", "").Replace("_", "").Replace("-", "");
+            return blocked.Any(w => normalized.Contains(w));
+        }
+
         public static CharacterVisuals UpdateCharacterVisualsFromGarage(CharacterVisuals cv, PlayerVisualLoadout updates, NewCharaterColors colors)
         {
             cv.race             = updates.race;

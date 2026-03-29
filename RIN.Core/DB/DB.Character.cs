@@ -489,6 +489,55 @@ namespace RIN.Core.DB
                     throw exception;
                 });
         }
+        public async Task<IEnumerable<CharacterLoadout>> GetCharacterLoadouts(long characterGuid)
+        {
+            const string SELECT_SQL = @"SELECT loadout_id as LoadoutId, battleframe_sdb_id as ChassisSdbId, visuals as Visuals, slotted_items as SlottedItems 
+                                        FROM webapi.""CharacterLoadouts"" 
+                                        WHERE character_guid = @characterGuid;";
+            
+            return await DBCall(conn => conn.QueryAsync<CharacterLoadout>(SELECT_SQL, new { characterGuid }));
+        }
+
+        public async Task<bool> SaveCharacterLoadout(long characterGuid, int loadoutId, int chassisSdbId, string visualsJson, string slottedItemsJson)
+        {
+            const string UPSERT_SQL = @"INSERT INTO webapi.""CharacterLoadouts"" (character_guid, loadout_id, battleframe_sdb_id, visuals, slotted_items)
+                                        VALUES (@characterGuid, @loadoutId, @chassisSdbId, @visualsJson::jsonb, @slottedItemsJson::jsonb)
+                                        ON CONFLICT (character_guid, loadout_id) 
+                                        DO UPDATE SET 
+                                            battleframe_sdb_id = EXCLUDED.battleframe_sdb_id,
+                                            visuals = EXCLUDED.visuals,
+                                            slotted_items = EXCLUDED.slotted_items;";
+
+            var result = await DBCall(conn => conn.ExecuteAsync(UPSERT_SQL, new { characterGuid, loadoutId, chassisSdbId, visualsJson, slottedItemsJson }));
+            return result > 0;
+        }
+
+        public async Task<bool> ConsumeCharacterItem(long characterGuid, int sdbId, int quantity)
+        {
+            // Similar to ConsumeCharacterResource but for the CharacterItems table
+            const string DELETE_ITEMS_SQL = @"DELETE FROM webapi.""CharacterItems""
+                                                WHERE item_guid IN (
+                                                    SELECT item_guid FROM webapi.""CharacterItems""
+                                                    WHERE character_guid = @characterGuid AND sdb_id = @sdbId
+                                                    LIMIT @quantity
+                                                );";
+
+            var itemsAffected = await DBCall(conn => conn.ExecuteAsync(DELETE_ITEMS_SQL, new { characterGuid, sdbId, quantity }),
+                exception =>
+                {
+                    Logger.LogError(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    throw exception;
+                });
+
+            if (itemsAffected >= quantity)
+            {
+                await NotifyInventoryUpdate(characterGuid);
+                return true;
+            }
+
+            return false;
+        }
+
         public async Task NotifyInventoryUpdate(long characterGuid)
         {
             var payload = System.Text.Json.JsonSerializer.Serialize(new { CharacterGuid = (ulong)characterGuid });

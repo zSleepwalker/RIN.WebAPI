@@ -49,5 +49,15 @@ namespace RIN.Core.DB.SDB
 
             return result ?? Enumerable.Empty<CosmeticInfo>();
         }
+        public async Task<bool> ValidateNewCharacterAssets(int headId, int voiceSetId)
+        {
+            const string SELECT_SQL = @"
+                SELECT 
+                    (SELECT COUNT(*) FROM sdb.""dbcharacter::Head"" WHERE id = @headId) +
+                    (SELECT COUNT(*) FROM sdb.""dbcharacter::VoiceSet"" WHERE id = @voiceSetId) as Total;";
+            
+            var result = await DBCall(conn => conn.QueryFirstOrDefaultAsync<int>(SELECT_SQL, new { headId, voiceSetId }));
+            return result == 2;
+        }
     }
 }

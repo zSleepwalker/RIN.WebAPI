@@ -2,6 +2,7 @@ using System.Text.Json;
 using Grpc.Core;
 using Npgsql;
 using RIN.Core.DB;
+using RIN.Core.Models;
 using RIN.InternalAPI.Models;
 
 namespace RIN.InternalAPI.Services
@@ -46,6 +47,7 @@ namespace RIN.InternalAPI.Services
         public async ValueTask<CharacterInventoryResponse> GetCharacterInventory(CharacterID req)
         {
             var dbInventory = await DB.GetCharacterInventory(req.ID);
+            var dbLoadouts  = await DB.GetCharacterLoadouts(req.ID);
             var resp = new CharacterInventoryResponse();
 
             foreach (var item in dbInventory.items)
@@ -66,6 +68,17 @@ namespace RIN.InternalAPI.Services
                 });
             }
 
+            foreach (var loadout in dbLoadouts)
+            {
+                resp.Loadouts.Add(new CharacterLoadout
+                {
+                    LoadoutId = loadout.LoadoutId,
+                    ChassisSdbId = loadout.ChassisSdbId,
+                    Visuals = loadout.Visuals,
+                    SlottedItems = loadout.SlottedItems
+                });
+            }
+
             return resp;
         }
 
@@ -73,6 +86,12 @@ namespace RIN.InternalAPI.Services
         {
             var success = await DB.ConsumeCharacterResource((long)req.CharacterId, (int)req.SdbId, (int)req.Quantity);
             return new ConsumeResourceResp { Success = success };
+        }
+
+        public async ValueTask<ConsumeItemResp> ConsumeCharacterItem(ConsumeItemReq req)
+        {
+            var success = await DB.ConsumeCharacterItem((long)req.CharacterId, (int)req.SdbId, (int)req.Quantity);
+            return new ConsumeItemResp { Success = success };
         }
 
         public async Task Stream(IAsyncStreamReader<Command> commands, IServerStreamWriter<Event> events, ServerCallContext context)
