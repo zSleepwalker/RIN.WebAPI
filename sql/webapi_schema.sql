@@ -736,7 +736,8 @@ CREATE TABLE webapi."Accounts" (
     email_optin boolean DEFAULT false NOT NULL,
     email_verified boolean DEFAULT false NOT NULL,
     rb_balance bigint NOT NULL,
-    language text
+    language text,
+    staff_flags integer DEFAULT 0 NOT NULL
 );
 
 
@@ -955,7 +956,9 @@ CREATE TABLE webapi."Characters" (
     expires_in timestamp with time zone,
     current_battleframe_guid bigint,
     last_zone_id integer,
-    last_outpost_id integer
+    last_outpost_id integer,
+    elite_rank integer DEFAULT 0 NOT NULL,
+    pvp_rank integer DEFAULT 0 NOT NULL
 );
 
 
@@ -1151,6 +1154,8 @@ CREATE TABLE webapi."VipData" (
     start_date timestamp with time zone NOT NULL,
     expiration_date timestamp with time zone NOT NULL
 );
+
+
 
 
 ALTER TABLE webapi."VipData" OWNER TO tmwadmin;

@@ -21,6 +21,9 @@ namespace RIN.Core.ClientApi
         public int                                 gender            { get; set; }
         public string                              current_gender    { get; set; } = null!;
         public int                                 elite_rank        { get; set; }
+        public int                                 pvp_rank          { get; set; }
+        public string?                             army_tag          { get; set; }
+        public long?                               army_guid         { get; set; }
         public DateTime                            last_seen_at      { get; set; }
         public CharacterBattleframeCombinedVisuals visuals           { get; set; } = null!;
         public List<GearSlot>                      gear              { get; set; } = new();

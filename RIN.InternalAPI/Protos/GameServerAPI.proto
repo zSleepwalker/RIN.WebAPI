@@ -65,6 +65,12 @@ message BasicCharacterInfo {
    uint32 LastZoneId = 10;
    uint32 LastOutpostId = 11;
    uint32 TimePlayed = 12;
+   uint32 PvPRank = 13;
+   uint32 EliteLevel = 14;
+   uint32 StaffFlags = 15;
+   uint32 Level = 16;
+   uint32 EffectiveLevel = 17;
+   uint32 VipLevel = 18;
 }
 message CharacterAndBattleframeVisuals {
    BasicCharacterInfo CharacterInfo = 1;

@@ -17,5 +17,12 @@ namespace RIN.Core.Models
         [ProtoMember(10)] public uint   LastZoneId              { get; set; }
         [ProtoMember(11)] public uint   LastOutpostId           { get; set; }
         [ProtoMember(12)] public uint   TimePlayed              { get; set; }
+        [ProtoMember(13)] public uint   PvPRank                 { get; set; }
+        [ProtoMember(14)] public uint   EliteLevel              { get; set; }
+        [ProtoMember(15)] public uint   StaffFlags              { get; set; }
+        [ProtoMember(16)] public byte   Level                   { get; set; }
+        [ProtoMember(17)] public byte   EffectiveLevel          { get; set; }
+        [ProtoMember(18)] public uint   VipLevel                { get; set; }
+
     }
 }

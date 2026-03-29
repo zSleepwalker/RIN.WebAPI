@@ -44,35 +44,41 @@ namespace RIN.Core.DB
 
         public async Task<List<Character>> GetCharactersForAccount(long accountId)
         {
-            const string SELECT_SQL = @"SELECT 
-		                        webapi.""Characters"".character_guid,
-		                        name,
-		                        unique_name,
-		                        is_dev,
-		                        is_active,
-		                        created_at,
-		                        title_id,
-		                        time_played_secs,
-		                        needs_name_change,
-		                        (SELECT MAX(level) FROM webapi.""Battleframes"" WHERE character_guid = webapi.""Characters"".character_guid) AS max_frame_level,
+                    const string SELECT_SQL = @"SELECT 
+		                        c.character_guid,
+		                        c.name,
+		                        c.unique_name,
+		                        c.is_dev,
+		                        c.is_active,
+		                        c.created_at,
+		                        c.title_id,
+		                        c.time_played_secs,
+		                        c.needs_name_change,
+		                        (SELECT MAX(level) FROM webapi.""Battleframes"" WHERE character_guid = c.character_guid) AS max_frame_level,
 		                        Battleframes.battleframe_sdb_id AS frame_sdb_id,
 		                        Battleframes.level AS current_level,
-		                        gender,
-		                        0 AS elite_rank,
-		                        last_seen_at,
-		                        webapi.""Characters"".visuals,
-		                        race,
-		                        DeletionQueue.deleted_at,
-		                        DeletionQueue.expires_in
-		                        FROM webapi.""Characters""
+		                        c.gender,
+		                        c.elite_rank,
+								c.pvp_rank,
+		                        c.last_seen_at,
+		                        c.visuals,
+		                        c.race,
+		                        dq.deleted_at,
+		                        dq.expires_in,
+								a.tag as army_tag,
+								a.army_guid as army_guid
+		                        FROM webapi.""Characters"" c
 				                        LEFT JOIN
-					                        webapi.""DeletionQueue"" as DeletionQueue
-						                        ON DeletionQueue.character_guid = webapi.""Characters"".character_guid
-						
+					                        webapi.""DeletionQueue"" dq
+						                        ON dq.character_guid = c.character_guid
 				                        LEFT JOIN
 					                        webapi.""Battleframes"" as Battleframes
-						                        ON Battleframes.id = webapi.""Characters"".current_battleframe_guid
-		                        WHERE webapi.""Characters"".account_id = @accountId";
+						                        ON Battleframes.id = c.current_battleframe_guid
+										LEFT JOIN webapi.""ArmyMembers"" as am 
+												ON c.character_guid = am.character_guid
+										LEFT JOIN webapi.""Armies"" as a 
+												ON am.army_guid = a.army_guid
+		                        WHERE c.account_id = @accountId";
 
             var results = await DBCall(conn => conn.QueryAsync<dynamic>(SELECT_SQL, new {accountId}));
 
@@ -101,6 +107,9 @@ namespace RIN.Core.DB
                         gender            = result.gender,
                         current_gender    = CharacterUtil.GenderNumToString(result.gender),
                         elite_rank        = result.elite_rank,
+                        pvp_rank          = result.pvp_rank,
+                        army_tag          = result.army_tag,
+                        army_guid         = result.army_guid,
                         last_seen_at      = result.last_seen_at,
                         gear              = new List<GearSlot>(),
                         expires_in        = expires_in,
@@ -132,19 +141,28 @@ namespace RIN.Core.DB
         public async Task<(BasicCharacterInfo info, CharacterVisuals visuals)> GetBasicCharacterAndVisualData(long charId)
         {
             const string SELECT_SQL = @"SELECT c.name, title_id, gender, race, current_battleframe_guid, bf.battleframe_sdb_id AS CurrentBattleframeSDBId, 
-                                a.tag as ArmyTag, a.army_guid as ArmyGUID, ar.is_officer as ArmyIsOfficer, 
-                                last_zone_id as LastZoneId, last_outpost_id as LastOutpostId, c.time_played_secs as TimePlayed,  c.visuals
-	                        FROM webapi.""Characters"" as c
-                                LEFT JOIN
-					                webapi.""Battleframes"" as bf
-						                ON bf.id = c.current_battleframe_guid
-	                            LEFT JOIN webapi.""ArmyMembers"" as am 
-	                                    ON c.character_guid = am.character_guid
-	                            LEFT JOIN webapi.""Armies"" as a 
-	                                    ON am.army_guid = a.army_guid
-	                            LEFT JOIN webapi.""ArmyRanks"" as ar
-	                                    ON am.army_rank_id = ar.army_rank_id
-	                        WHERE c.character_guid = @charId";
+                                 a.tag as ArmyTag, a.army_guid as ArmyGUID, ar.is_officer as ArmyIsOfficer, 
+                                 last_zone_id as LastZoneId, last_outpost_id as LastOutpostId, c.time_played_secs as TimePlayed,  c.visuals,
+                                 c.elite_rank as EliteLevel, c.pvp_rank as PvPRank, acc.staff_flags as StaffFlags,
+                                 bf.level as Level, bf.level as EffectiveLevel, 
+                                 COALESCE(CASE WHEN vd.expiration_date > NOW() THEN EXTRACT(DAY FROM (NOW() - vd.start_date))::int + 1 ELSE 0 END, 0) as VipLevel
+
+ 	                        FROM webapi.""Characters"" as c
+                                 LEFT JOIN
+ 					                webapi.""Battleframes"" as bf
+ 						                ON bf.id = c.current_battleframe_guid
+ 	                            LEFT JOIN webapi.""ArmyMembers"" as am 
+ 	                                    ON c.character_guid = am.character_guid
+ 	                            LEFT JOIN webapi.""Armies"" as a 
+ 	                                    ON am.army_guid = a.army_guid
+ 	                            LEFT JOIN webapi.""ArmyRanks"" as ar
+ 	                                    ON am.army_rank_id = ar.army_rank_id
+                                 LEFT JOIN webapi.""Accounts"" as acc
+                                         ON acc.account_id = c.account_id
+                                 LEFT JOIN webapi.""VipData"" as vd
+                                         ON vd.account_id = c.account_id
+ 	                        WHERE c.character_guid = @charId";
+
 
             var result = await DBCall(conn => conn.QueryAsync<BasicCharacterInfo, byte[], (BasicCharacterInfo, CharacterVisuals)>(
                 SELECT_SQL,

@@ -55,8 +55,8 @@ namespace RIN.WebAPI.Controllers
                 },
                 created_at      = new DateTimeOffset(loginResult.created_at).ToUnixTimeSeconds(),
                 character_limit = loginResult.character_limit == -1 ? 10 : (loginResult.character_limit == 0 ? ServerDefaults.CharacterLimitPerAccount : loginResult.character_limit),
-                is_vip          = false,
-                vip_expiration  = -1,
+                is_vip          = loginResult.is_vip,
+                vip_expiration  = loginResult.vip_expiration,
             };
 
             await Db.UpdateLastLoginTime(loginResult.account_id);
