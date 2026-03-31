@@ -71,6 +71,13 @@ message BasicCharacterInfo {
    uint32 Level = 16;
    uint32 EffectiveLevel = 17;
    uint32 VipLevel = 18;
+   int64 Xp = 19;
+   float XpBoostModifier = 20;
+   int64 XpBoostExpiration = 21;
+   float ResourceBoostModifier = 22;
+   int64 ResourceBoostExpiration = 23;
+   float ReputationBoostModifier = 24;
+   int64 ReputationBoostExpiration = 25;
 }
 message CharacterAndBattleframeVisuals {
    BasicCharacterInfo CharacterInfo = 1;

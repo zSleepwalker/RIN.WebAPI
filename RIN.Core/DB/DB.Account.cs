@@ -53,8 +53,8 @@ namespace RIN.Core.DB
                 secret,
                 character_limit,
                 true AS                                                             can_login,      
-                (vip.expiration_date > vip.start_date AND vip.account_id            IS NOT          NULL) AS is_vip,
-                COALESCE(EXTRACT(EPOCH FROM vip.expiration_date) * 1000, -1) AS vip_expiration, 
+                (vip.expiration_date > NOW() AND vip.expiration_date > vip.start_date AND vip.account_id IS NOT NULL) AS is_vip,
+                CASE WHEN vip.expiration_date > NOW() THEN EXTRACT(EPOCH FROM vip.expiration_date) * 1000 ELSE -1 END AS vip_expiration, 
                 '' AS                                                               error,          
                 '' AS                                                               error_msg
 
@@ -152,6 +152,19 @@ namespace RIN.Core.DB
                     return (false, "An error occurred while processing the purchase");
                 }
             });
+        }
+
+        public async Task<bool> AddOrExtendVip(long accountId, int durationSecs)
+        {
+            const string UPSERT_SQL = @"
+                INSERT INTO webapi.""VipData"" (account_id, start_date, expiration_date)
+                VALUES (@accountId, NOW(), NOW() + (@durationSecs || ' seconds')::interval)
+                ON CONFLICT (account_id)
+                DO UPDATE SET 
+                    expiration_date = GREATEST(webapi.""VipData"".expiration_date, NOW()) + (@durationSecs || ' seconds')::interval;";
+
+            var result = await DBCall(conn => conn.ExecuteAsync(UPSERT_SQL, new { accountId, durationSecs }));
+            return result > 0;
         }
     }
 }

@@ -54,9 +54,9 @@ namespace RIN.Core.DB
 		                        c.title_id,
 		                        c.time_played_secs,
 		                        c.needs_name_change,
-		                        (SELECT MAX(level) FROM webapi.""Battleframes"" WHERE character_guid = c.character_guid) AS max_frame_level,
+		                        COALESCE((SELECT MAX(level) FROM webapi.""Battleframes"" WHERE character_guid = c.character_guid), 1) AS max_frame_level,
 		                        Battleframes.battleframe_sdb_id AS frame_sdb_id,
-		                        Battleframes.level AS current_level,
+		                        COALESCE(Battleframes.level, 1) AS current_level,
 		                        c.gender,
 		                        c.elite_rank,
 								c.pvp_rank,
@@ -142,26 +142,31 @@ namespace RIN.Core.DB
         {
             const string SELECT_SQL = @"SELECT c.name, title_id, gender, race, current_battleframe_guid, bf.battleframe_sdb_id AS CurrentBattleframeSDBId, 
                                  a.tag as ArmyTag, a.army_guid as ArmyGUID, ar.is_officer as ArmyIsOfficer, 
-                                 last_zone_id as LastZoneId, last_outpost_id as LastOutpostId, c.time_played_secs as TimePlayed,  c.visuals,
-                                 c.elite_rank as EliteLevel, c.pvp_rank as PvPRank, acc.staff_flags as StaffFlags,
-                                 bf.level as Level, bf.level as EffectiveLevel, 
-                                 COALESCE(CASE WHEN vd.expiration_date > NOW() THEN EXTRACT(DAY FROM (NOW() - vd.start_date))::int + 1 ELSE 0 END, 0) as VipLevel
-
- 	                        FROM webapi.""Characters"" as c
+                                 last_zone_id as LastZoneId, last_outpost_id as LastOutpostId, c.time_played_secs as TimePlayed,
+                                 c.pvp_rank as PvPRank, c.elite_rank as EliteLevel, acc.staff_flags as StaffFlags,
+                                 bf.level AS Level, bf.level AS EffectiveLevel, bf.xp AS Xp,
+                                 c.visuals,
+                                 (SELECT modifier FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'xp_boost' AND expiration_date > NOW()) as XpBoostModifier,
+                                 (SELECT EXTRACT(EPOCH FROM expiration_date)::bigint FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'xp_boost' AND expiration_date > NOW()) as XpBoostExpiration,
+                                 (SELECT modifier FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'resource_boost' AND expiration_date > NOW()) as ResourceBoostModifier,
+                                 (SELECT EXTRACT(EPOCH FROM expiration_date)::bigint FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'resource_boost' AND expiration_date > NOW()) as ResourceBoostExpiration,
+                                 (SELECT modifier FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'reputation_boost' AND expiration_date > NOW()) as ReputationBoostModifier,
+                                 (SELECT EXTRACT(EPOCH FROM expiration_date)::bigint FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'reputation_boost' AND expiration_date > NOW()) as ReputationBoostExpiration
+  	                        FROM webapi.""Characters"" as c
                                  LEFT JOIN
- 					                webapi.""Battleframes"" as bf
- 						                ON bf.id = c.current_battleframe_guid
- 	                            LEFT JOIN webapi.""ArmyMembers"" as am 
- 	                                    ON c.character_guid = am.character_guid
- 	                            LEFT JOIN webapi.""Armies"" as a 
- 	                                    ON am.army_guid = a.army_guid
- 	                            LEFT JOIN webapi.""ArmyRanks"" as ar
- 	                                    ON am.army_rank_id = ar.army_rank_id
+  					                webapi.""Battleframes"" as bf
+  						                ON bf.id = c.current_battleframe_guid
+  	                            LEFT JOIN webapi.""ArmyMembers"" as am 
+  	                                    ON c.character_guid = am.character_guid
+  	                            LEFT JOIN webapi.""Armies"" as a 
+  	                                    ON am.army_guid = a.army_guid
+  	                            LEFT JOIN webapi.""ArmyRanks"" as ar
+  	                                    ON am.army_rank_id = ar.army_rank_id
                                  LEFT JOIN webapi.""Accounts"" as acc
                                          ON acc.account_id = c.account_id
                                  LEFT JOIN webapi.""VipData"" as vd
                                          ON vd.account_id = c.account_id
- 	                        WHERE c.character_guid = @charId";
+  	                        WHERE c.character_guid = @charId";
 
 
             var result = await DBCall(conn => conn.QueryAsync<BasicCharacterInfo, byte[], (BasicCharacterInfo, CharacterVisuals)>(
@@ -561,6 +566,29 @@ namespace RIN.Core.DB
             var payload = System.Text.Json.JsonSerializer.Serialize(new { CharacterGuid = (ulong)characterGuid });
             var notifySql = $@"NOTIFY events, 'InventoryUpdated->{payload}'";
             await DBCall(conn => conn.ExecuteAsync(notifySql));
+        }
+
+        public async Task<bool> AddOrExtendBoost(long charId, string type, float modifier, int durationSecs)
+        {
+            const string UPSERT_SQL = @"
+                INSERT INTO webapi.""CharacterBoosts"" (character_guid, boost_type, modifier, expiration_date)
+                VALUES (@charId, @type, @modifier, NOW() + (@durationSecs || ' seconds')::interval)
+                ON CONFLICT (character_guid, boost_type)
+                DO UPDATE SET 
+                    modifier = EXCLUDED.modifier,
+                    expiration_date = GREATEST(webapi.""CharacterBoosts"".expiration_date, NOW()) + (@durationSecs || ' seconds')::interval;";
+
+            var result = await DBCall(conn => conn.ExecuteAsync(UPSERT_SQL, new { charId, type, modifier, durationSecs }));
+            return result > 0;
+        }
+
+        public async Task<IEnumerable<Models.DB.CharacterBoost>> GetActiveBoosts(long charId)
+        {
+            const string SELECT_SQL = @"SELECT character_guid, boost_type, modifier, expiration_date 
+                                        FROM webapi.""CharacterBoosts"" 
+                                        WHERE character_guid = @charId AND expiration_date > NOW();";
+
+            return await DBCall(conn => conn.QueryAsync<Models.DB.CharacterBoost>(SELECT_SQL, new { charId }));
         }
     }
 }

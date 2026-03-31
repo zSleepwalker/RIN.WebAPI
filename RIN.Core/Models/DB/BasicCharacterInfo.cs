@@ -23,6 +23,12 @@ namespace RIN.Core.Models
         [ProtoMember(16)] public byte   Level                   { get; set; }
         [ProtoMember(17)] public byte   EffectiveLevel          { get; set; }
         [ProtoMember(18)] public uint   VipLevel                { get; set; }
-
+        [ProtoMember(19)] public long   Xp                      { get; set; }
+        [ProtoMember(20)] public float  XpBoostModifier         { get; set; }
+        [ProtoMember(21)] public long   XpBoostExpiration       { get; set; }
+        [ProtoMember(22)] public float  ResourceBoostModifier   { get; set; }
+        [ProtoMember(23)] public long   ResourceBoostExpiration { get; set; }
+        [ProtoMember(24)] public float  ReputationBoostModifier { get; set; }
+        [ProtoMember(25)] public long   ReputationBoostExpiration { get; set; }
     }
 }

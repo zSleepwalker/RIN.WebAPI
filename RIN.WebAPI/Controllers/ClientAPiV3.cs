@@ -116,5 +116,12 @@ namespace RIN.WebAPI.Controllers
         {
                 return await Db.GetLeaderboard(leaderboardId, page);
         }
+
+        protected async Task<long> GetAid()
+        {
+            var uid = GetUid();
+            var loginResult = await Db.GetLoginData(uid);
+            return loginResult?.account_id ?? 0;
+        }
     }
 }
