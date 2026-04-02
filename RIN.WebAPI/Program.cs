@@ -57,6 +57,7 @@ builder.Services.Configure<DbConnectionSettings>(builder.Configuration.GetSectio
 // Add services to the container.
 builder.Services.AddSingleton<DB>();
 builder.Services.AddSingleton<SDB>();
+builder.Services.AddSingleton<SdbRepository>();
 
 builder.Services.AddHostedService<CharacterCleanupService>();
 

@@ -518,7 +518,7 @@ namespace RIN.Core.DB
                                         FROM webapi.""CharacterLoadouts"" 
                                         WHERE character_guid = @characterGuid;";
             
-            return await DBCall(conn => conn.QueryAsync<CharacterLoadout>(SELECT_SQL, new { characterGuid }));
+            return await DBCall(conn => conn.QueryAsync<CharacterLoadout>(SELECT_SQL, new { characterGuid })) ?? Enumerable.Empty<CharacterLoadout>();
         }
 
         public async Task<bool> SaveCharacterLoadout(long characterGuid, int loadoutId, int chassisSdbId, string visualsJson, string slottedItemsJson)
@@ -588,7 +588,7 @@ namespace RIN.Core.DB
                                         FROM webapi.""CharacterBoosts"" 
                                         WHERE character_guid = @charId AND expiration_date > NOW();";
 
-            return await DBCall(conn => conn.QueryAsync<Models.DB.CharacterBoost>(SELECT_SQL, new { charId }));
+            return await DBCall(conn => conn.QueryAsync<Models.DB.CharacterBoost>(SELECT_SQL, new { charId })) ?? Enumerable.Empty<Models.DB.CharacterBoost>();
         }
     }
 }

@@ -21,13 +21,15 @@ namespace RIN.WebAPI.Controllers
         private readonly ILogger<OperatorController> Logger;
         private readonly DB Db;
         private readonly SDB SDB;
+        private readonly SdbRepository SdbRepo;
 
-        public ClientAPiV3(IOptions<ServerDefaultsSettings> serverDefaults, ILogger<OperatorController> logger, DB db, SDB sdb)
+        public ClientAPiV3(IOptions<ServerDefaultsSettings> serverDefaults, ILogger<OperatorController> logger, DB db, SDB sdb, SdbRepository sdbRepo)
         {
             ServerDefaults = serverDefaults.Value;
             Logger = logger;
             Db = db;
             SDB = sdb;
+            SdbRepo = sdbRepo;
         }
 
         // TODO: log to db?

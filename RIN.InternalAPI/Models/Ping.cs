@@ -6,16 +6,16 @@ namespace RIN.InternalAPI.Models
     public class PingReq
     {
         [ProtoMember(1)]
-        public DateTime SentTime { get; set; }
+        public long SentTime { get; set; }
     }
 
     [ProtoContract]
     public class PingResp
     {
         [ProtoMember(1)]
-        public DateTime ClientSentTime { get; set; }
+        public long ClientSentTime { get; set; }
 
         [ProtoMember(2)]
-        public DateTime ServerReciveTime { get; set; }
+        public long ServerReciveTime { get; set; }
     }
 }

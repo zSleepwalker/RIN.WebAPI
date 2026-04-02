@@ -1,7 +1,15 @@
 syntax = "proto3";
 package RIN;
-import "protobuf-net/bcl.proto"; // schema for protobuf-net's handling of core .NET types
 
+message ApplyCharacterBoostReq {
+   uint64 CharacterId = 1;
+   string BoostType = 2;
+   float Modifier = 3;
+   uint32 DurationSeconds = 4;
+}
+message ApplyCharacterBoostResp {
+   bool Success = 1;
+}
 message ArmyApplicationApproved {
    uint64 CharacterGuid = 1;
    string InitiatorName = 2;
@@ -173,11 +181,11 @@ message InventoryUpdated {
    uint64 CharacterGuid = 1;
 }
 message PingReq {
-   .bcl.DateTime SentTime = 1;
+   int64 SentTime = 1;
 }
 message PingResp {
-   .bcl.DateTime ClientSentTime = 1;
-   .bcl.DateTime ServerReciveTime = 2;
+   int64 ClientSentTime = 1;
+   int64 ServerReciveTime = 2;
 }
 message PlayerBattleframeVisuals {
    repeated WebDecal decals = 1;
@@ -222,6 +230,7 @@ message WebIdValueColorId {
    WebColorId color = 2;
 }
 service GameServerAPI {
+   rpc ApplyCharacterBoost (ApplyCharacterBoostReq) returns (ApplyCharacterBoostResp);
    rpc ConsumeCharacterItem (ConsumeItemReq) returns (ConsumeItemResp);
    rpc ConsumeCharacterResource (ConsumeResourceReq) returns (ConsumeResourceResp);
    rpc GetCharacterAndBattleframeVisuals (CharacterID) returns (CharacterAndBattleframeVisuals);

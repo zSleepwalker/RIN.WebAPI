@@ -79,7 +79,7 @@ namespace RIN.WebAPI.Controllers
             }
 
             // 1. Resolve effect via SDB
-            var boostInfo = await SDB.GetBoostInfoFromItem(sdbId);
+            var boostInfo = await SdbRepo.ResolveBoostFromItem(sdbId);
             
             if (boostInfo == null)
             {

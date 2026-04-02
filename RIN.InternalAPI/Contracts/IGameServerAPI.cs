@@ -13,6 +13,7 @@ namespace RIN.InternalAPI
         public ValueTask<CharacterInventoryResponse> GetCharacterInventory(CharacterID req);
         public ValueTask<ConsumeResourceResp> ConsumeCharacterResource(ConsumeResourceReq req);
         public ValueTask<ConsumeItemResp> ConsumeCharacterItem(ConsumeItemReq req);
+        public ValueTask<ApplyCharacterBoostResp> ApplyCharacterBoost(ApplyCharacterBoostReq req);
         public Task Stream(IAsyncStreamReader<Command> commands, IServerStreamWriter<Event> events, ServerCallContext context);
     }
 }

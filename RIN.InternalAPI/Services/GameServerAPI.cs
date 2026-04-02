@@ -18,12 +18,18 @@ namespace RIN.InternalAPI.Services
             Logger = logger;
         }
 
+        public async ValueTask<ApplyCharacterBoostResp> ApplyCharacterBoost(ApplyCharacterBoostReq req)
+        {
+            var success = await DB.AddOrExtendBoost((long)req.CharacterId, req.BoostType, req.Modifier, (int)req.DurationSeconds);
+            return new ApplyCharacterBoostResp { Success = success };
+        }
+
         public ValueTask<PingResp> Ping(PingReq req)
         {
             var resp = new PingResp
             {
                 ClientSentTime   = req.SentTime,
-                ServerReciveTime = DateTime.UtcNow
+                ServerReciveTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };
 
             return new ValueTask<PingResp>(resp);

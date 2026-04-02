@@ -22,8 +22,8 @@ namespace RIN.Core.Models
     {
         [ProtoMember(1)] public int LoadoutId { get; set; }
         [ProtoMember(2)] public int ChassisSdbId { get; set; }
-        [ProtoMember(3)] public string Visuals { get; set; } // JSON
-        [ProtoMember(4)] public string SlottedItems { get; set; } // JSON (Map<Slot, ItemGuid>)
+        [ProtoMember(3)] public string Visuals { get; set; } = "{}"; // JSON
+        [ProtoMember(4)] public string SlottedItems { get; set; } = "{}"; // JSON (Map<Slot, ItemGuid>)
     }
 
     [ProtoContract]
@@ -58,6 +58,21 @@ namespace RIN.Core.Models
 
     [ProtoContract]
     public class ConsumeItemResp
+    {
+        [ProtoMember(1)] public bool Success { get; set; }
+    }
+
+    [ProtoContract]
+    public class ApplyCharacterBoostReq
+    {
+        [ProtoMember(1)] public ulong CharacterId { get; set; }
+        [ProtoMember(2)] public string BoostType { get; set; } = string.Empty;
+        [ProtoMember(3)] public float Modifier { get; set; }
+        [ProtoMember(4)] public uint DurationSeconds { get; set; }
+    }
+
+    [ProtoContract]
+    public class ApplyCharacterBoostResp
     {
         [ProtoMember(1)] public bool Success { get; set; }
     }
