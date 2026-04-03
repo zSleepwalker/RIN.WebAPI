@@ -1,6 +1,14 @@
 syntax = "proto3";
 package RIN;
 
+message AddCharacterItemReq {
+   uint64 CharacterId = 1;
+   uint32 SdbId = 2;
+}
+message AddCharacterItemResp {
+   bool Success = 1;
+   uint64 Guid = 2;
+}
 message ApplyCharacterBoostReq {
    uint64 CharacterId = 1;
    string BoostType = 2;
@@ -141,6 +149,7 @@ message Command {
    oneof subtype {
       SaveGameSessionData SaveGameSessionData = 1;
       SaveLgvRaceFinish SaveLgvRaceFinish = 2;
+      SaveCharacterLoadout SaveCharacterLoadout = 3;
    }
 }
 message ConsumeItemReq {
@@ -195,6 +204,13 @@ message PlayerBattleframeVisuals {
    repeated int32 warpaint_patterns = 5 [packed = false];
    repeated int32 visual_overrides = 6 [packed = false];
 }
+message SaveCharacterLoadout {
+   uint64 CharacterGuid = 1;
+   int32 LoadoutId = 2;
+   int32 ChassisSdbId = 3;
+   string VisualsJson = 4;
+   string SlottedItemsJson = 5;
+}
 message SaveGameSessionData {
    uint64 CharacterId = 1;
    uint32 ZoneId = 2;
@@ -230,6 +246,7 @@ message WebIdValueColorId {
    WebColorId color = 2;
 }
 service GameServerAPI {
+   rpc AddCharacterItem (AddCharacterItemReq) returns (AddCharacterItemResp);
    rpc ApplyCharacterBoost (ApplyCharacterBoostReq) returns (ApplyCharacterBoostResp);
    rpc ConsumeCharacterItem (ConsumeItemReq) returns (ConsumeItemResp);
    rpc ConsumeCharacterResource (ConsumeResourceReq) returns (ConsumeResourceResp);

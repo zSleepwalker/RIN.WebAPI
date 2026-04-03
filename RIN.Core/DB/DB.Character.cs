@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.Extensions.Logging;
 using Dapper;
 using System.Text.Json;
+using System.Transactions;
 using ProtoBuf;
 using RIN.Core.ClientApi;
 using RIN.Core.Common;
@@ -494,7 +495,19 @@ namespace RIN.Core.DB
 
         public async Task<(IEnumerable<(long item_guid, int sdb_id)> items, IEnumerable<(int sdb_id, int quantity)> resources)> GetCharacterInventory(long characterGuid)
         {
-            const string ITEMS_SQL = @"SELECT item_guid, sdb_id FROM webapi.""CharacterItems"" WHERE character_guid = @characterGuid;";
+            const string ITEMS_SQL = @"
+                SELECT DISTINCT item_guid, sdb_id
+                FROM (
+                    SELECT item_guid, sdb_id
+                    FROM webapi.""CharacterItems""
+                    WHERE character_guid = @characterGuid
+
+                    UNION ALL
+
+                    SELECT item_guid, item_sdb_id AS sdb_id
+                    FROM webapi.""CharacterLoadoutItems""
+                    WHERE character_guid = @characterGuid
+                ) items;";
             const string RES_SQL = @"SELECT sdb_id, quantity FROM webapi.""CharacterResources"" WHERE character_guid = @characterGuid;";
 
             var items = await DBCall(conn => conn.QueryAsync<(long item_guid, int sdb_id)>(ITEMS_SQL, new { characterGuid }));
@@ -503,36 +516,158 @@ namespace RIN.Core.DB
             return (items!, resources!);
         }
 
-        public async Task ProcessCharacterDeletionQueue()
+        public async Task<int> ProcessCharacterDeletionQueue()
         {
-            await DBCall(conn => conn.ExecuteAsync(@"SELECT webapi.""ProcessCharacterDeletionQueue""()"),
+            var deletedCount = await DBCall(conn => conn.QuerySingleAsync<int>(@"SELECT webapi.""ProcessCharacterDeletionQueue""()"),
                 exception =>
                 {
                     Logger.LogError(exception, "Error processing character deletion queue");
                     throw exception;
                 });
+
+            if (deletedCount > 0)
+            {
+                Logger.LogInformation("Processed character deletion queue and deleted {deletedCount} character(s)", deletedCount);
+            }
+
+            return deletedCount;
         }
         public async Task<IEnumerable<CharacterLoadout>> GetCharacterLoadouts(long characterGuid)
         {
-            const string SELECT_SQL = @"SELECT loadout_id as LoadoutId, battleframe_sdb_id as ChassisSdbId, visuals as Visuals, slotted_items as SlottedItems 
-                                        FROM webapi.""CharacterLoadouts"" 
-                                        WHERE character_guid = @characterGuid;";
+            const string SELECT_SQL = @"
+                SELECT
+                    cl.loadout_id AS LoadoutId,
+                    cl.battleframe_sdb_id AS ChassisSdbId,
+                    cl.visuals::text AS Visuals,
+                    COALESCE(
+                        (
+                            SELECT jsonb_object_agg(cli.slot_type::text, cli.item_guid)::text
+                            FROM webapi.""CharacterLoadoutItems"" cli
+                            WHERE cli.character_guid = cl.character_guid
+                                AND cli.loadout_id = cl.loadout_id
+                        ),
+                        '{}'
+                    ) AS SlottedItems
+                FROM webapi.""CharacterLoadouts"" cl
+                WHERE cl.character_guid = @characterGuid;";
             
             return await DBCall(conn => conn.QueryAsync<CharacterLoadout>(SELECT_SQL, new { characterGuid })) ?? Enumerable.Empty<CharacterLoadout>();
         }
 
         public async Task<bool> SaveCharacterLoadout(long characterGuid, int loadoutId, int chassisSdbId, string visualsJson, string slottedItemsJson)
         {
-            const string UPSERT_SQL = @"INSERT INTO webapi.""CharacterLoadouts"" (character_guid, loadout_id, battleframe_sdb_id, visuals, slotted_items)
-                                        VALUES (@characterGuid, @loadoutId, @chassisSdbId, @visualsJson::jsonb, @slottedItemsJson::jsonb)
-                                        ON CONFLICT (character_guid, loadout_id) 
-                                        DO UPDATE SET 
-                                            battleframe_sdb_id = EXCLUDED.battleframe_sdb_id,
-                                            visuals = EXCLUDED.visuals,
-                                            slotted_items = EXCLUDED.slotted_items;";
+            return await DBCall(async conn =>
+            {
+                Dictionary<byte, ulong> requestedSlots;
+                try
+                {
+                    requestedSlots = JsonSerializer.Deserialize<Dictionary<byte, ulong>>(slottedItemsJson) ?? new Dictionary<byte, ulong>();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "SaveCharacterLoadout: invalid slottedItemsJson for character {characterGuid}, loadout {loadoutId}", characterGuid, loadoutId);
+                    return false;
+                }
 
-            var result = await DBCall(conn => conn.ExecuteAsync(UPSERT_SQL, new { characterGuid, loadoutId, chassisSdbId, visualsJson, slottedItemsJson }));
-            return result > 0;
+                var hasAmbientTransaction = Transaction.Current != null;
+                await using var tx = hasAmbientTransaction ? null : await conn.BeginTransactionAsync();
+
+                const string UPSERT_LOADOUT_SQL = @"
+                    INSERT INTO webapi.""CharacterLoadouts"" (character_guid, loadout_id, battleframe_sdb_id, visuals, slotted_items)
+                    VALUES (@characterGuid, @loadoutId, @chassisSdbId, @visualsJson::jsonb, @slottedItemsJson::jsonb)
+                    ON CONFLICT (character_guid, loadout_id)
+                    DO UPDATE SET
+                        battleframe_sdb_id = EXCLUDED.battleframe_sdb_id,
+                        visuals = EXCLUDED.visuals,
+                        slotted_items = EXCLUDED.slotted_items;";
+
+                await conn.ExecuteAsync(UPSERT_LOADOUT_SQL, new { characterGuid, loadoutId, chassisSdbId, visualsJson, slottedItemsJson }, tx);
+
+                var existingSlots = (await conn.QueryAsync<(int slot_type, long item_guid, int item_sdb_id)>(
+                    @"SELECT slot_type, item_guid, item_sdb_id
+                      FROM webapi.""CharacterLoadoutItems""
+                      WHERE character_guid = @characterGuid AND loadout_id = @loadoutId;",
+                    new { characterGuid, loadoutId }, tx)).ToList();
+                                var existingItemSdbByGuid = existingSlots
+                                        .GroupBy(x => x.item_guid)
+                                        .ToDictionary(g => g.Key, g => g.First().item_sdb_id);
+
+                foreach (var existing in existingSlots)
+                {
+                    if (!requestedSlots.ContainsKey((byte)existing.slot_type))
+                    {
+                        await conn.ExecuteAsync(
+                            @"INSERT INTO webapi.""CharacterItems"" (item_guid, character_guid, sdb_id)
+                              VALUES (@itemGuid, @characterGuid, @sdbId)
+                              ON CONFLICT (item_guid) DO NOTHING;",
+                            new { itemGuid = existing.item_guid, characterGuid, sdbId = existing.item_sdb_id }, tx);
+                    }
+                }
+
+                await conn.ExecuteAsync(
+                    @"DELETE FROM webapi.""CharacterLoadoutItems""
+                      WHERE character_guid = @characterGuid AND loadout_id = @loadoutId;",
+                    new { characterGuid, loadoutId }, tx);
+
+                foreach (var slot in requestedSlots)
+                {
+                    long itemGuid = (long)slot.Value;
+                    int slotType = slot.Key;
+
+                    int? sdbId = await conn.QueryFirstOrDefaultAsync<int?>(
+                        @"SELECT sdb_id
+                          FROM webapi.""CharacterItems""
+                          WHERE character_guid = @characterGuid AND item_guid = @itemGuid;",
+                        new { characterGuid, itemGuid }, tx);
+
+                    if (sdbId.HasValue)
+                    {
+                        await conn.ExecuteAsync(
+                            @"DELETE FROM webapi.""CharacterItems""
+                              WHERE character_guid = @characterGuid AND item_guid = @itemGuid;",
+                            new { characterGuid, itemGuid }, tx);
+                    }
+                    else
+                    {
+                                                if (existingItemSdbByGuid.TryGetValue(itemGuid, out var existingSdbId))
+                                                {
+                                                        sdbId = existingSdbId;
+                                                }
+                                                else
+                                                {
+                                                        sdbId = await conn.QueryFirstOrDefaultAsync<int?>(
+                                                                @"SELECT item_sdb_id
+                                                                    FROM webapi.""CharacterLoadoutItems""
+                                                                    WHERE character_guid = @characterGuid AND item_guid = @itemGuid;",
+                                                                new { characterGuid, itemGuid }, tx);
+                                                }
+                    }
+
+                    if (!sdbId.HasValue)
+                    {
+                        Logger.LogWarning("SaveCharacterLoadout: skipping unknown item_guid {itemGuid} for character {characterGuid}, loadout {loadoutId}, slot {slotType}", itemGuid, characterGuid, loadoutId, slotType);
+                        continue;
+                    }
+
+                    await conn.ExecuteAsync(
+                        @"INSERT INTO webapi.""CharacterLoadoutItems"" (character_guid, loadout_id, slot_type, item_guid, item_sdb_id)
+                          VALUES (@characterGuid, @loadoutId, @slotType, @itemGuid, @sdbId)
+                          ON CONFLICT (item_guid)
+                          DO UPDATE SET
+                              character_guid = EXCLUDED.character_guid,
+                              loadout_id = EXCLUDED.loadout_id,
+                              slot_type = EXCLUDED.slot_type,
+                              item_sdb_id = EXCLUDED.item_sdb_id;",
+                        new { characterGuid, loadoutId, slotType, itemGuid, sdbId }, tx);
+                }
+
+                if (tx != null)
+                {
+                    await tx.CommitAsync();
+                }
+                await NotifyInventoryUpdate(characterGuid);
+                return true;
+            });
         }
 
         public async Task<bool> ConsumeCharacterItem(long characterGuid, int sdbId, int quantity)

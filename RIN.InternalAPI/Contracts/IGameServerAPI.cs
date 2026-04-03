@@ -11,6 +11,7 @@ namespace RIN.InternalAPI
         public ValueTask<PingResp> Ping(PingReq req);
         public ValueTask<CharacterAndBattleframeVisuals> GetCharacterAndBattleframeVisuals(CharacterID req);
         public ValueTask<CharacterInventoryResponse> GetCharacterInventory(CharacterID req);
+        public ValueTask<AddCharacterItemResp> AddCharacterItem(AddCharacterItemReq req);
         public ValueTask<ConsumeResourceResp> ConsumeCharacterResource(ConsumeResourceReq req);
         public ValueTask<ConsumeItemResp> ConsumeCharacterItem(ConsumeItemReq req);
         public ValueTask<ApplyCharacterBoostResp> ApplyCharacterBoost(ApplyCharacterBoostReq req);

@@ -64,4 +64,11 @@ namespace RIN.Core.Models.SDB
         public int Quantity { get; set; }
         public bool IsOutput { get; set; }
     }
+
+    public class SdbStarterLoadoutSlot
+    {
+        public int SlotType { get; set; }
+        public int DefaultPveModule { get; set; }
+        public int DefaultPvpModule { get; set; }
+    }
 }

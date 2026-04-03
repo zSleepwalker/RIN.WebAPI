@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using RIN.Core;
 using RIN.Core.Config;
+using RIN.Core.Models.SDB;
 using RIN.Core.SDB;
 
 namespace RIN.Core.DB.SDB
@@ -58,6 +59,30 @@ namespace RIN.Core.DB.SDB
             
             var result = await DBCall(conn => conn.QueryFirstOrDefaultAsync<int>(SELECT_SQL, new { headId, voiceSetId }));
             return result == 2;
+        }
+
+        public async Task<IEnumerable<SdbStarterLoadoutSlot>> GetChassisDefaultLoadoutSlots(int chassisId)
+        {
+            const string SELECT_SQL = @"
+                WITH default_loadout AS (
+                    SELECT id
+                    FROM sdb.""dbcharacter::CharCreateLoadout""
+                    WHERE frame_id = @chassisId
+                    ORDER BY is_starting_loadout DESC, id
+                    LIMIT 1
+                )
+                SELECT 
+                    slot_type AS ""SlotType"",
+                    default_pve_module AS ""DefaultPveModule"",
+                    default_pvp_module AS ""DefaultPvpModule""
+                FROM sdb.""dbcharacter::CharCreateLoadoutSlots""
+                WHERE loadout_id = (SELECT id FROM default_loadout)
+                ORDER BY slot_type;";
+
+            var result = await DBCall(conn => conn.QueryAsync<SdbStarterLoadoutSlot>(SELECT_SQL, new { chassisId }),
+                exception => Logger.LogError(exception, "Error getting starter loadout slots for chassis {chassisId}", chassisId));
+
+            return result ?? Enumerable.Empty<SdbStarterLoadoutSlot>();
         }
 
         // Resolves the boost type, modifier and duration from an item SDB ID

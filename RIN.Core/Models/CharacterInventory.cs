@@ -63,6 +63,20 @@ namespace RIN.Core.Models
     }
 
     [ProtoContract]
+    public class AddCharacterItemReq
+    {
+        [ProtoMember(1)] public ulong CharacterId { get; set; }
+        [ProtoMember(2)] public uint SdbId { get; set; }
+    }
+
+    [ProtoContract]
+    public class AddCharacterItemResp
+    {
+        [ProtoMember(1)] public bool Success { get; set; }
+        [ProtoMember(2)] public ulong Guid { get; set; }
+    }
+
+    [ProtoContract]
     public class ApplyCharacterBoostReq
     {
         [ProtoMember(1)] public ulong CharacterId { get; set; }

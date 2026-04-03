@@ -88,6 +88,16 @@ namespace RIN.InternalAPI.Services
             return resp;
         }
 
+        public async ValueTask<AddCharacterItemResp> AddCharacterItem(AddCharacterItemReq req)
+        {
+            var guid = await DB.AddCharacterItem((long)req.CharacterId, (int)req.SdbId);
+            return new AddCharacterItemResp
+            {
+                Success = guid != 0,
+                Guid = (ulong)guid,
+            };
+        }
+
         public async ValueTask<ConsumeResourceResp> ConsumeCharacterResource(ConsumeResourceReq req)
         {
             var success = await DB.ConsumeCharacterResource((long)req.CharacterId, (int)req.SdbId, (int)req.Quantity);
@@ -158,6 +168,9 @@ namespace RIN.InternalAPI.Services
                             break;
                         case SaveLgvRaceFinish race:
                             await DB.SaveLgvRaceFinish((long)race.CharacterGuid, (int)race.LeaderboardId, (long)race.TimeMs);
+                            break;
+                        case SaveCharacterLoadout loadout:
+                            await DB.SaveCharacterLoadout((long)loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson, loadout.SlottedItemsJson);
                             break;
                     }
                 }
