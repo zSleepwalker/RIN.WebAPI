@@ -21,7 +21,7 @@ namespace RIN.Core.DB
             var result = await DBCall(conn => conn.QueryAsync<long>(INSERT_SQL, new { characterId, battleframeSdId, visuals = visualsData }),
                 exception =>
                 {
-                    Logger.LogError(exception, "Error creating a battleframe loadout ({battleframeSdId}) for {characterId} due to: {exception}", characterId, battleframeSdId, exception);
+                    Serilog.Log.Error(exception, "Error creating a battleframe loadout ({battleframeSdId}) for {characterId} due to: {exception}", characterId, battleframeSdId, exception);
                     throw exception;
                 });
 

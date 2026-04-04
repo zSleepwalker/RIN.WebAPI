@@ -46,14 +46,14 @@ namespace RIN.Core.DB
 
                 if (LogDbTimes) {
                     sw.Stop();
-                    Logger.LogInformation("DB call {functionName} took {elapsed} ({ms}ms)", functionName, sw.Elapsed, sw.Elapsed.TotalMilliseconds);
+                    Serilog.Log.Information("DB call {functionName} took {elapsed} ({ms}ms)", functionName, sw.Elapsed, sw.Elapsed.TotalMilliseconds);
                 }
                 
                 return result;
             }
             catch (Exception e) {
                 onError?.Invoke(e);
-                Logger.LogError($"{functionName}: {e}");
+                Serilog.Log.Error($"{functionName}: {e}");
                 
                 return default!;
             }

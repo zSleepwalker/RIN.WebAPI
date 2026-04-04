@@ -46,7 +46,7 @@ namespace RIN.InternalAPI.Services
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
-                Logger.LogError(ex, ex.Message);
+                Serilog.Log.Error(ex, ex.Message);
             }
         }
 
@@ -65,7 +65,7 @@ namespace RIN.InternalAPI.Services
                         await cmd.ExecuteNonQueryAsync(ct);
                     }
 
-                    Logger.LogInformation("Listening for db events");
+                    Serilog.Log.Information("Listening for db events");
 
                     while (!ct.IsCancellationRequested) 
                     {
@@ -74,7 +74,7 @@ namespace RIN.InternalAPI.Services
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    Logger.LogError(ex, "DbEventBus error ocurred, reconnecting in 10 seconds");
+                    Serilog.Log.Error(ex, "DbEventBus error ocurred, reconnecting in 10 seconds");
                     await Task.Delay(10000, ct);
                 }
             }
@@ -93,7 +93,7 @@ namespace RIN.InternalAPI.Services
                 var type = EventTypeCache.GetOrAdd(eventType, type => Type.GetType($"RIN.InternalAPI.Models.{type}"));
                 if (type == null)
                 {
-                    Logger.LogWarning("Unknown event type: {eventType}", eventType);
+                    Serilog.Log.Warning("Unknown event type: {eventType}", eventType);
                     return;
                 }
 
@@ -105,7 +105,7 @@ namespace RIN.InternalAPI.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Error parsing event payload: {payloadJson}", payloadJson);
+                Serilog.Log.Error(ex, "Error parsing event payload: {payloadJson}", payloadJson);
             }
         }
 
@@ -126,7 +126,7 @@ namespace RIN.InternalAPI.Services
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "Error processing event");
+                    Serilog.Log.Error(ex, "Error processing event");
                 }
             }
         }
@@ -149,7 +149,7 @@ namespace RIN.InternalAPI.Services
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Error while fetching character and battleframe visuals: {message}", ex.Message);
+                Serilog.Log.Error(ex, "Error while fetching character and battleframe visuals: {message}", ex.Message);
             }
         }
 

@@ -97,7 +97,7 @@ namespace RIN.WebAPI.Controllers
 
             await Db.UpdateCharacterVisuals(characterGuid, playerLoadout.visuals);
 
-            Logger.LogInformation("Updating player visuals for {characterGuid} on loadout Idx: {loadoutIdx}", characterGuid, loadoutIdx);
+            Serilog.Log.Information("Updating player visuals for {characterGuid} on loadout Idx: {loadoutIdx}", characterGuid, loadoutIdx);
 
             return Content("{}", "application/json");
         }

@@ -35,7 +35,7 @@ namespace RIN.Core.DB.SDB
                     FROM sdb.""dbvisualrecords::WarpaintPalette"" WHERE id = @hairColorId) as HairColor;";
             
             var result = await DBCall(conn => conn.QueryAsync<NewCharaterColors>(SELECT_SQL, new {eyeColorId, skinColorId, hairColorId}),
-                exception => Logger.LogError($"Error getting colors for new character with ids (eye: {eyeColorId}, skin: {skinColorId}, hair: {hairColorId}) due to: {exception}"));
+                exception => Serilog.Log.Error($"Error getting colors for new character with ids (eye: {eyeColorId}, skin: {skinColorId}, hair: {hairColorId}) due to: {exception}"));
 
             return result?.FirstOrDefault();
         }
@@ -90,7 +90,7 @@ namespace RIN.Core.DB.SDB
                 ORDER BY slot_type;";
 
             var result = await DBCall(conn => conn.QueryAsync<SdbStarterLoadoutSlot>(SELECT_SQL, new { chassisId }),
-                exception => Logger.LogError(exception, "Error getting starter loadout slots for chassis {chassisId}", chassisId));
+                exception => Serilog.Log.Error(exception, "Error getting starter loadout slots for chassis {chassisId}", chassisId));
 
             return result ?? Enumerable.Empty<SdbStarterLoadoutSlot>();
         }

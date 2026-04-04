@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Extensions.Logging;
 using RIN.Core.ClientApi;
 
@@ -32,7 +32,7 @@ namespace RIN.Core.DB
             var result = await DBCall(conn => conn.ExecuteAsync(sql, log),
                 exception =>
                 {
-                    Logger.LogError($"Error logging client event user for {userId} due to: {exception}");
+                    Serilog.Log.Error($"Error logging client event user for {userId} due to: {exception}");
                     throw exception;
                 });
 

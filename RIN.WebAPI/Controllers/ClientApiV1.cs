@@ -48,7 +48,7 @@ namespace RIN.WebAPI.Controllers
         [HttpPost("client_event")]
         public async Task<string> ClientEvent(ClientEvent evnt)
         {
-            Logger.LogInformation("ClientEvent: {@evnt}", evnt);
+            Serilog.Log.Information("ClientEvent: {@evnt}", evnt);
             await Db.LogClientEvent(evnt);
             return "";
         }

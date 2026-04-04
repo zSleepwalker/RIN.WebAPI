@@ -148,7 +148,7 @@ namespace RIN.Core.DB
                 catch (Exception ex)
                 {
                     transaction.Rollback();
-                    Logger.LogError(ex, "Error incrementing character limit for account {accountId}", accountId);
+                    Serilog.Log.Error(ex, "Error incrementing character limit for account {accountId}", accountId);
                     return (false, "An error occurred while processing the purchase");
                 }
             });

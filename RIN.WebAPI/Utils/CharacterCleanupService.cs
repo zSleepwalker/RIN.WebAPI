@@ -20,7 +20,7 @@ namespace RIN.WebAPI.Utils
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Character Cleanup Service is starting.");
+            Serilog.Log.Information("Character Cleanup Service is starting.");
 
             // Use a PeriodicTimer (available since .NET 6) to run every minute
             using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
@@ -32,17 +32,17 @@ namespace RIN.WebAPI.Utils
 
                 while (await timer.WaitForNextTickAsync(stoppingToken))
                 {
-                    _logger.LogInformation("Processing character deletion queue...");
+                    Serilog.Log.Information("Processing character deletion queue...");
                     await _db.ProcessCharacterDeletionQueue();
                 }
             }
             catch (OperationCanceledException)
             {
-                _logger.LogInformation("Character Cleanup Service is stopping.");
+                Serilog.Log.Information("Character Cleanup Service is stopping.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred in Character Cleanup Service.");
+                Serilog.Log.Error(ex, "An error occurred in Character Cleanup Service.");
             }
         }
     }

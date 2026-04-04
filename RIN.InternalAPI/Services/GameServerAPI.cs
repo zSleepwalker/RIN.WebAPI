@@ -146,7 +146,7 @@ namespace RIN.InternalAPI.Services
                 {
                     await foreach (var command in commands.ReadAllAsync(token))
                     {
-                        Logger.LogInformation("Received command: {command}", command);
+                        Serilog.Log.Information("Received command: {command}", command);
 
                         switch (command)
                         {
@@ -172,11 +172,11 @@ namespace RIN.InternalAPI.Services
             }
             catch (Exception ex) when (IsExpectedStreamTermination(ex, token))
             {
-                Logger.LogInformation("GRPC Stream ended: client disconnected or connection reset");
+                Serilog.Log.Information("GRPC Stream ended: client disconnected or connection reset");
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "GRPC Stream crashed");
+                Serilog.Log.Error(ex, "GRPC Stream crashed");
             }
             finally
             {

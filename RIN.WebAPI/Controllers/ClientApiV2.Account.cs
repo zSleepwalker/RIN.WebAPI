@@ -21,7 +21,7 @@ namespace RIN.WebAPI.Controllers
         {
             ContentResult invalidLoginError = ReturnError(Error.Codes.ERR_INCORRECT_USERPASS, "Login failed, check your username and password");
 
-            //Logger.LogInformation($"Headers: {GetHeadersDev()}");
+            //Serilog.Log.Information($"Headers: {GetHeadersDev()}");
 
             var uid = HttpUtility.UrlDecode(GetRed5Sig().UID.ToString());
             var loginResult = await Db.GetLoginData(uid);
@@ -91,7 +91,7 @@ namespace RIN.WebAPI.Controllers
         [HttpPost("accounts")]
         public async Task<object> CreateAccount(CreateAccountReq req)
         {
-            //Logger.LogInformation("CreateAccount {@req}", req);
+            //Serilog.Log.Information("CreateAccount {@req}", req);
 
             var birthday  = DateTime.Parse(req.birthday);
             var accountId = await Db.RegisterNewAccount(req.email, req.password, req.country, birthday, req.referral_key, req.email_optin);

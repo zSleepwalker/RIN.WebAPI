@@ -48,7 +48,7 @@ namespace RIN.WebAPI.Controllers
         public object SetGarageSlotPerks(long characterGuid, int garageSlotId, [FromBody] object body)
         {
             // TODO: persist perk selections to the database
-            Logger.LogInformation("SetGarageSlotPerks: characterGuid={characterGuid}, garageSlotId={garageSlotId}, body={@body}", characterGuid, garageSlotId, body);
+            Serilog.Log.Information("SetGarageSlotPerks: characterGuid={characterGuid}, garageSlotId={garageSlotId}, body={@body}", characterGuid, garageSlotId, body);
             return Content("", "application/json");
         }
 

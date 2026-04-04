@@ -36,7 +36,7 @@ namespace RIN.WebAPI.Controllers
         [HttpPost("ui_actions")]
         public string ClientEvent(UiActions action)
         {
-            Logger.LogInformation("UiAction: {@action}", action);
+            Serilog.Log.Information("UiAction: {@action}", action);
             return "";
         }
 

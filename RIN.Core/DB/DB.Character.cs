@@ -415,7 +415,7 @@ namespace RIN.Core.DB
             var result = await DBCall(conn => conn.QuerySingleAsync<long>(INSERT_SQL, new { characterGuid, sdbId }),
                 exception =>
                 {
-                    Logger.LogError(exception, "Error adding item {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    Serilog.Log.Error(exception, "Error adding item {sdbId} for character {characterGuid}", sdbId, characterGuid);
                     throw exception;
                 });
 
@@ -433,7 +433,7 @@ namespace RIN.Core.DB
             var result = await DBCall(conn => conn.ExecuteAsync(UPSERT_SQL, new { characterGuid, sdbId, quantity }),
                 exception =>
                 {
-                    Logger.LogError(exception, "Error adding/updating resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    Serilog.Log.Error(exception, "Error adding/updating resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
                     throw exception;
                 });
 
@@ -454,7 +454,7 @@ namespace RIN.Core.DB
             var resourceAffected = await DBCall(conn => conn.ExecuteAsync(UPDATE_SQL, new { characterGuid, sdbId, quantity }),
                 exception =>
                 {
-                    Logger.LogError(exception, "Error consuming resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    Serilog.Log.Error(exception, "Error consuming resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
                     throw exception;
                 });
 
@@ -465,7 +465,7 @@ namespace RIN.Core.DB
                 await DBCall(conn => conn.ExecuteAsync(DELETE_SQL, new { characterGuid, sdbId }),
                     exception =>
                     {
-                        Logger.LogError(exception, "Error cleaning up resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                        Serilog.Log.Error(exception, "Error cleaning up resource {sdbId} for character {characterGuid}", sdbId, characterGuid);
                         throw exception;
                     });
 
@@ -485,7 +485,7 @@ namespace RIN.Core.DB
             var itemsAffected = await DBCall(conn => conn.ExecuteAsync(DELETE_ITEMS_SQL, new { characterGuid, sdbId, quantity }),
                 exception =>
                 {
-                    Logger.LogError(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    Serilog.Log.Error(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
                     throw exception;
                 });
 
@@ -541,13 +541,13 @@ namespace RIN.Core.DB
             var deletedCount = await DBCall(conn => conn.QuerySingleAsync<int>(@"SELECT webapi.""ProcessCharacterDeletionQueue""()"),
                 exception =>
                 {
-                    Logger.LogError(exception, "Error processing character deletion queue");
+                    Serilog.Log.Error(exception, "Error processing character deletion queue");
                     throw exception;
                 });
 
             if (deletedCount > 0)
             {
-                Logger.LogInformation("Processed character deletion queue and deleted {deletedCount} character(s)", deletedCount);
+                Serilog.Log.Information("Processed character deletion queue and deleted {deletedCount} character(s)", deletedCount);
             }
 
             return deletedCount;
@@ -585,7 +585,7 @@ namespace RIN.Core.DB
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "SaveCharacterLoadout: invalid slottedItemsJson for character {characterGuid}, loadout {loadoutId}", characterGuid, loadoutId);
+                    Serilog.Log.Error(ex, "SaveCharacterLoadout: invalid slottedItemsJson for character {characterGuid}, loadout {loadoutId}", characterGuid, loadoutId);
                     return false;
                 }
 
@@ -665,7 +665,7 @@ namespace RIN.Core.DB
 
                     if (!sdbId.HasValue)
                     {
-                        Logger.LogWarning("SaveCharacterLoadout: skipping unknown item_guid {itemGuid} for character {characterGuid}, loadout {loadoutId}, slot {slotType}", itemGuid, characterGuid, loadoutId, slotType);
+                        Serilog.Log.Warning("SaveCharacterLoadout: skipping unknown item_guid {itemGuid} for character {characterGuid}, loadout {loadoutId}, slot {slotType}", itemGuid, characterGuid, loadoutId, slotType);
                         continue;
                     }
 
@@ -703,7 +703,7 @@ namespace RIN.Core.DB
             var itemsAffected = await DBCall(conn => conn.ExecuteAsync(DELETE_ITEMS_SQL, new { characterGuid, sdbId, quantity }),
                 exception =>
                 {
-                    Logger.LogError(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
+                    Serilog.Log.Error(exception, "Error consuming items with sdbId {sdbId} for character {characterGuid}", sdbId, characterGuid);
                     throw exception;
                 });
 
