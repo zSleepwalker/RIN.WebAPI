@@ -136,22 +136,7 @@ namespace RIN.InternalAPI.Services
                 {
                     await foreach (var evt in channel.Reader.ReadAllAsync(token))
                     {
-<<<<<<< HEAD
-                        case SaveGameSessionData data:
-                            await DB.UpdateCharacterAfterGameSession((long)data.CharacterId, (int)data.ZoneId, (int)data.OutpostId, (int)data.TimePlayed);
-                            break;
-                        case SaveLgvRaceFinish race:
-                            await DB.SaveLgvRaceFinish((long)race.CharacterGuid, (int)race.LeaderboardId, (long)race.TimeMs);
-                            break;
-                        case SaveCharacterLoadout loadout:
-                            await DB.SaveCharacterLoadout((long)loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson, loadout.SlottedItemsJson);
-                            break;
-                        case SaveCharacterUnlock unlock:
-                            await DB.UpsertCharacterUnlock((long)unlock.CharacterGuid, unlock.UnlockType, (int)unlock.UnlockId, (int)unlock.FrameId);
-                            break;
-=======
                         await events.WriteAsync(evt);
->>>>>>> 8ac28b6 (Use single db connection to listen for events (#17))
                     }
                 });
 
