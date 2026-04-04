@@ -85,6 +85,16 @@ namespace RIN.InternalAPI.Services
                 });
             }
 
+            foreach (var unlock in dbInventory.unlocks)
+            {
+                resp.Unlocks.Add(new CharacterUnlockEntry
+                {
+                    UnlockType = unlock.unlock_type,
+                    UnlockId = (uint)unlock.unlock_id,
+                    FrameId = (uint)Math.Max(unlock.frame_id, 0),
+                });
+            }
+
             return resp;
         }
 
@@ -171,6 +181,9 @@ namespace RIN.InternalAPI.Services
                             break;
                         case SaveCharacterLoadout loadout:
                             await DB.SaveCharacterLoadout((long)loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson, loadout.SlottedItemsJson);
+                            break;
+                        case SaveCharacterUnlock unlock:
+                            await DB.UpsertCharacterUnlock((long)unlock.CharacterGuid, unlock.UnlockType, (int)unlock.UnlockId, (int)unlock.FrameId);
                             break;
                     }
                 }

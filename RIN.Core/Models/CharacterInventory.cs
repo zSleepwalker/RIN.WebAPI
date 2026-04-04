@@ -32,6 +32,15 @@ namespace RIN.Core.Models
         [ProtoMember(1)] public List<CharacterItem> Items { get; set; } = new List<CharacterItem>();
         [ProtoMember(2)] public List<CharacterResource> Resources { get; set; } = new List<CharacterResource>();
         [ProtoMember(3)] public List<CharacterLoadout> Loadouts { get; set; } = new List<CharacterLoadout>();
+        [ProtoMember(4)] public List<CharacterUnlockEntry> Unlocks { get; set; } = new List<CharacterUnlockEntry>();
+    }
+
+    [ProtoContract]
+    public class CharacterUnlockEntry
+    {
+        [ProtoMember(1)] public string UnlockType { get; set; } = string.Empty;
+        [ProtoMember(2)] public uint UnlockId { get; set; }
+        [ProtoMember(3)] public uint FrameId { get; set; }
     }
 
     [ProtoContract]

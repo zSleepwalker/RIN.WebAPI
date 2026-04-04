@@ -6,6 +6,7 @@ namespace RIN.InternalAPI.Models
     [ProtoInclude(1, typeof(SaveGameSessionData))]
     [ProtoInclude(2, typeof(SaveLgvRaceFinish))]
     [ProtoInclude(3, typeof(SaveCharacterLoadout))]
+    [ProtoInclude(4, typeof(SaveCharacterUnlock))]
     public abstract class Command;
 
     [ProtoContract]
@@ -33,5 +34,14 @@ namespace RIN.InternalAPI.Models
         [ProtoMember(3)] public int    ChassisSdbId     { get; set; }
         [ProtoMember(4)] public string VisualsJson      { get; set; }
         [ProtoMember(5)] public string SlottedItemsJson { get; set; }
+    }
+
+    [ProtoContract]
+    public class SaveCharacterUnlock : Command
+    {
+        [ProtoMember(1)] public ulong CharacterGuid { get; set; }
+        [ProtoMember(2)] public string UnlockType { get; set; } = string.Empty;
+        [ProtoMember(3)] public uint UnlockId { get; set; }
+        [ProtoMember(4)] public uint FrameId { get; set; }
     }
 }

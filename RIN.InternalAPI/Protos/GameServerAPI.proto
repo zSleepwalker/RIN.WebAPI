@@ -107,6 +107,7 @@ message CharacterInventoryResponse {
    repeated CharacterItem Items = 1;
    repeated CharacterResource Resources = 2;
    repeated CharacterLoadout Loadouts = 3;
+   repeated CharacterUnlockEntry Unlocks = 4;
 }
 message CharacterItem {
    uint64 Guid = 1;
@@ -121,6 +122,11 @@ message CharacterLoadout {
 message CharacterResource {
    uint32 SdbId = 1;
    uint32 Quantity = 2;
+}
+message CharacterUnlockEntry {
+   string UnlockType = 1;
+   uint32 UnlockId = 2;
+   uint32 FrameId = 3;
 }
 message CharacterVisuals {
    int32 id = 1;
@@ -150,6 +156,7 @@ message Command {
       SaveGameSessionData SaveGameSessionData = 1;
       SaveLgvRaceFinish SaveLgvRaceFinish = 2;
       SaveCharacterLoadout SaveCharacterLoadout = 3;
+      SaveCharacterUnlock SaveCharacterUnlock = 4;
    }
 }
 message ConsumeItemReq {
@@ -210,6 +217,12 @@ message SaveCharacterLoadout {
    int32 ChassisSdbId = 3;
    string VisualsJson = 4;
    string SlottedItemsJson = 5;
+}
+message SaveCharacterUnlock {
+   uint64 CharacterGuid = 1;
+   string UnlockType = 2;
+   uint32 UnlockId = 3;
+   uint32 FrameId = 4;
 }
 message SaveGameSessionData {
    uint64 CharacterId = 1;

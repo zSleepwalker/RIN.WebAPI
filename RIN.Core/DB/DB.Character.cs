@@ -493,7 +493,7 @@ namespace RIN.Core.DB
             return false;
         }
 
-        public async Task<(IEnumerable<(long item_guid, int sdb_id)> items, IEnumerable<(int sdb_id, int quantity)> resources)> GetCharacterInventory(long characterGuid)
+        public async Task<(IEnumerable<(long item_guid, int sdb_id)> items, IEnumerable<(int sdb_id, int quantity)> resources, IEnumerable<(string unlock_type, int unlock_id, int frame_id)> unlocks)> GetCharacterInventory(long characterGuid)
         {
             const string ITEMS_SQL = @"
                 SELECT DISTINCT item_guid, sdb_id
@@ -509,11 +509,26 @@ namespace RIN.Core.DB
                     WHERE character_guid = @characterGuid
                 ) items;";
             const string RES_SQL = @"SELECT sdb_id, quantity FROM webapi.""CharacterResources"" WHERE character_guid = @characterGuid;";
+            const string UNLOCKS_SQL = @"SELECT unlock_type, unlock_id, frame_id FROM webapi.""CharacterUnlocks"" WHERE character_guid = @characterGuid;";
 
             var items = await DBCall(conn => conn.QueryAsync<(long item_guid, int sdb_id)>(ITEMS_SQL, new { characterGuid }));
             var resources = await DBCall(conn => conn.QueryAsync<(int sdb_id, int quantity)>(RES_SQL, new { characterGuid }));
+            var unlocks = await DBCall(conn => conn.QueryAsync<(string unlock_type, int unlock_id, int frame_id)>(UNLOCKS_SQL, new { characterGuid }))
+                ?? Enumerable.Empty<(string unlock_type, int unlock_id, int frame_id)>();
 
-            return (items!, resources!);
+            return (items!, resources!, unlocks);
+        }
+
+        public async Task<bool> UpsertCharacterUnlock(long characterGuid, string unlockType, int unlockId, int frameId)
+        {
+            const string UPSERT_SQL = @"
+                INSERT INTO webapi.""CharacterUnlocks"" (character_guid, unlock_type, unlock_id, frame_id)
+                VALUES (@characterGuid, @unlockType, @unlockId, @frameId)
+                ON CONFLICT (character_guid, unlock_type, unlock_id, frame_id)
+                DO NOTHING;";
+
+            var affected = await DBCall(conn => conn.ExecuteAsync(UPSERT_SQL, new { characterGuid, unlockType, unlockId, frameId }));
+            return affected >= 0;
         }
 
         public async Task<int> ProcessCharacterDeletionQueue()
