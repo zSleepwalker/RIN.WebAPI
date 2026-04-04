@@ -325,5 +325,11 @@ namespace RIN.WebAPI.Controllers
 
             return zone_list;
         }
+
+        [HttpGet("zones/queue_ids")]
+        public object ZoneQueueIds()
+        {
+            return new { };
+        }
     }
 }

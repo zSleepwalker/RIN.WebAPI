@@ -7,6 +7,8 @@ using RIN.WebAPI.Utils;
 using RIN.Core.DB;
 using RIN.Core.Utils;
 using System.Threading.Tasks;
+using System;
+using Microsoft.Extensions.Logging;
 
 namespace RIN.WebAPI.Controllers
 {
@@ -36,6 +38,8 @@ namespace RIN.WebAPI.Controllers
 
         [HttpGet("character/data")]
         [HttpGet("api/v1/character/data")]
+        [HttpGet("ingame/character/data")]
+        [HttpGet("ingame/api/v1/character/data")]
         [R5SigAuthRequired]
         public async Task<object> CharacterData()
         {
@@ -60,40 +64,28 @@ namespace RIN.WebAPI.Controllers
             };
         }
 
-        [HttpGet("api/v1/character_sheet.json")]
-        [R5SigAuthRequired]
-        public async Task<object> CharacterSheet()
+        [HttpGet("panelmanager")]
+        [HttpGet("ingame/panelmanager")]
+        public IActionResult PanelManager()
         {
-            var cid = GetCid();
-            var result = await Db.GetBasicCharacterAndVisualData(cid);
-            if (result.info == null) return NotFound();
-
-            return new
-            {
-                Battleframe = new
-                {
-                    ItemSdbId = result.info.CurrentBattleframeSDBId,
-                    Name = "Battleframe", // TODO: Get name from SDB
-                    WebIcon = "frame",
-                    Constraints = new
-                    {
-                        Mass = new { Level = new { Total = 10, Current = result.info.Level }, Value = new { Total = 1000, Current = 0 } },
-                        Power = new { Level = new { Total = 10, Current = result.info.Level }, Value = new { Total = 1000, Current = 0 } },
-                        Cpu = new { Level = new { Total = 10, Current = result.info.Level }, Value = new { Total = 1000, Current = 0 } }
-                    },
-                    Xp = new
-                    {
-                        CurrentXp = result.info.Xp,
-                        LifetimeXp = result.info.Xp
-                    }
-                }
-            };
+            const string html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"/><title>InGame</title></head><body></body></html>";
+            return Content(html, "text/html");
         }
 
-        [HttpGet("panelmanager")]
-        public object PanelManager()
+        [HttpPost("api/v1/abuse_reports")]
+        [HttpPost("ingame/api/v1/abuse_reports")]
+        [R5SigAuthRequired]
+        public IActionResult AbuseReports()
         {
-            return new { };
+            return Ok(new { status = "queued" });
+        }
+
+        [HttpGet("api/v1/social/friend_list")]
+        [HttpGet("ingame/api/v1/social/friend_list")]
+        [R5SigAuthRequired]
+        public IActionResult FriendList()
+        {
+            return Ok(Array.Empty<object>());
         }
     }
 }

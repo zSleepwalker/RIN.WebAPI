@@ -171,5 +171,29 @@ namespace RIN.WebAPI.Controllers
 
             return true;
         }
+
+        [HttpGet("accounts/get_cookie")]
+        public IActionResult GetCookie([FromQuery] string? totp = null)
+        {
+            return Ok(new
+            {
+                cookie = string.Empty,
+                requires_totp = false,
+                provided_totp = !string.IsNullOrWhiteSpace(totp)
+            });
+        }
+
+        [HttpPost("accounts/email_totp")]
+        public IActionResult EmailTotp()
+        {
+            return Ok(true);
+        }
+
+        [HttpPost("accounts/link_steam_account")]
+        [R5SigAuthRequired]
+        public IActionResult LinkSteamAccount()
+        {
+            return Ok(true);
+        }
     }
 }

@@ -23,13 +23,15 @@ namespace RIN.WebAPI.Controllers
         private readonly ILogger<OperatorController> Logger;
         private readonly DB Db;
         private readonly SDB Sdb;
+        private readonly IWebHostEnvironment _env;
 
         public StoreApi(
             IOptions<ServerDefaultsSettings> serverDefaults,
             IOptions<DevServerSettings> devServerSettings,
             ILogger<OperatorController> logger,
             DB db,
-            SDB sdb
+            SDB sdb,
+            IWebHostEnvironment env
         )
         {
             ServerDefaults = serverDefaults.Value;
@@ -37,6 +39,7 @@ namespace RIN.WebAPI.Controllers
             Logger = logger;
             Db = db;
             Sdb = sdb;
+            _env = env;
         }
         
         [HttpGet("")]
@@ -46,21 +49,9 @@ namespace RIN.WebAPI.Controllers
         }
 
         [HttpGet("products.json")]
-        public ProductsJson ProductsJson()
+        public IActionResult ProductsJson()
         {
-            string jsonFile = @"E:\RIN.WebAPI\RIN.WebAPI\StaticData\products.json";
-            string jsonString = System.IO.File.ReadAllText(jsonFile);
-            
-            if (String.IsNullOrEmpty(jsonString))
-            {
-                return new ProductsJson {};
-            }
-            else
-            {
-                return JsonSerializer.Deserialize<ProductsJson>(jsonString) ?? new ProductsJson();
-            }
-            
-            // return LoadJSON<ProductsJson>("./StaticData/products.json");
+            return ReturnJsonFile("products.json");
         }
         
         [HttpGet("billing/packages")]
@@ -73,6 +64,20 @@ namespace RIN.WebAPI.Controllers
         public object Vip()
         {
             return new {};
+        }
+
+        private IActionResult ReturnJsonFile(string fileName)
+        {
+            var path = Path.Combine(_env.ContentRootPath, "StaticData", fileName);
+            if (!System.IO.File.Exists(path))
+            {
+                return NotFound();
+            }
+
+            var json = System.IO.File.ReadAllText(path);
+
+            using var _ = JsonDocument.Parse(json);
+            return Content(json, "application/json");
         }
     }
 }
