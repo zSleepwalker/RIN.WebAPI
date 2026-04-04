@@ -105,7 +105,27 @@ namespace RIN.WebAPI.Controllers
         [R5SigAuthRequired]
         public async Task<Leaderboard?> GetLeaderboard(int leaderboardId, [FromQuery] int page = 1)
         {
-                return await Db.GetLeaderboard(leaderboardId, page);
+            return await Db.GetLeaderboard(leaderboardId, page);
+        }
+
+        // TODO: Implement
+        [HttpGet("trade/products/inventory_expansion")]
+        [R5SigAuthRequired]
+        public async Task<object> InventoryExpansion()
+        {
+            var data = "[]";
+
+            return Content(data, "application/json");
+        }
+
+        // TODO: Implement
+        [HttpGet("squad_builder/lfp")]
+        [R5SigAuthRequired]
+        public async Task<object> LookingForPeople()
+        {
+            var data = "{ total_count: 0, results: [] }";
+
+            return Content(data, "application/json");
         }
     }
 }
