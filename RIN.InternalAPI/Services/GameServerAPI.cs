@@ -136,33 +136,47 @@ namespace RIN.InternalAPI.Services
             {
                 var sendEventsTask = Task.Run(async () =>
                 {
-                    await foreach (var evt in channel.Reader.ReadAllAsync(token))
+                    try
                     {
-                        await events.WriteAsync(evt);
+                        await foreach (var evt in channel.Reader.ReadAllAsync(token))
+                        {
+                            await events.WriteAsync(evt);
+                        }
+                    }
+                    catch (Exception ex) when (IsExpectedStreamTermination(ex, token))
+                    {
+                        Serilog.Log.Information("Event stream ended due to client disconnect/cancellation.");
                     }
                 });
 
                 var commandsTask = Task.Run(async () =>
                 {
-                    await foreach (var command in commands.ReadAllAsync(token))
+                    try
                     {
-                        Serilog.Log.Information("Received command: {command}", command);
-
-                        switch (command)
+                        await foreach (var command in commands.ReadAllAsync(token))
                         {
-                            case SaveGameSessionData data:
-                                await DB.UpdateCharacterAfterGameSession((long)data.CharacterId, (int)data.ZoneId, (int)data.OutpostId, (int)data.TimePlayed);
-                                break;
-                            case SaveLgvRaceFinish race:
-                                await DB.SaveLgvRaceFinish((long)race.CharacterGuid, (int)race.LeaderboardId, (long)race.TimeMs);
-                                break;
-                            case SaveCharacterLoadout loadout:
-                                await DB.SaveCharacterLoadout((long)loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson, loadout.SlottedItemsJson);
-                                break;
-                            case SaveCharacterUnlock unlock:
-                                await DB.UpsertCharacterUnlock((long)unlock.CharacterGuid, unlock.UnlockType, (int)unlock.UnlockId, (int)unlock.FrameId);
-                                break;
+                            Serilog.Log.Information("Received command: {command}", command);
+
+                            switch (command)
+                            {
+                                case SaveGameSessionData data:
+                                    await DB.UpdateCharacterAfterGameSession((long)data.CharacterId, (int)data.ZoneId, (int)data.OutpostId, (int)data.TimePlayed);
+                                    break;
+                                case SaveLgvRaceFinish race:
+                                    await DB.SaveLgvRaceFinish((long)race.CharacterGuid, (int)race.LeaderboardId, (long)race.TimeMs);
+                                    break;
+                                case SaveCharacterLoadout loadout:
+                                    await DB.SaveCharacterLoadout((long)loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson, loadout.SlottedItemsJson);
+                                    break;
+                                case SaveCharacterUnlock unlock:
+                                    await DB.UpsertCharacterUnlock((long)unlock.CharacterGuid, unlock.UnlockType, (int)unlock.UnlockId, (int)unlock.FrameId);
+                                    break;
+                            }
                         }
+                    }
+                    catch (Exception ex) when (IsExpectedStreamTermination(ex, token))
+                    {
+                        Serilog.Log.Information("Command stream ended due to client disconnect/cancellation.");
                     }
                 });
 

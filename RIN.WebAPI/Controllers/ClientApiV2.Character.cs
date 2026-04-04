@@ -105,11 +105,11 @@ namespace RIN.WebAPI.Controllers
         // TOOD: Implement
         [HttpGet("characters/{characterGuid}/market/listings")]
         [R5SigAuthRequired]
-        public async Task<object> GetMarketListings(long characterGuid)
+        public Task<object> GetMarketListings(long characterGuid)
         {
             var data = "[]";
 
-            return Content(data, "application/json");
+            return Task.FromResult<object>(Content(data, "application/json"));
         }
 
         private Character CreateDefaultChar(string name = "Aero")

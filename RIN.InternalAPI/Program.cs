@@ -17,6 +17,11 @@ namespace RIN.InternalAPI
 
             var builder = WebApplication.CreateBuilder(args);
 
+            // Client-side disconnects on duplex streams are expected during reconnects.
+            // Keep framework categories quiet for these known HTTP/2 abort noise paths.
+            builder.Logging.AddFilter("Grpc.AspNetCore.Server.Internal.PipeExtensions", LogLevel.Critical);
+            builder.Logging.AddFilter("Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2.Http2Connection", LogLevel.Critical);
+
             builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Configuration(context.Configuration));
 
             // Add services to the container.

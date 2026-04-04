@@ -122,21 +122,21 @@ namespace RIN.WebAPI.Controllers
         // TODO: Implement
         [HttpGet("trade/products/inventory_expansion")]
         [R5SigAuthRequired]
-        public async Task<object> InventoryExpansion()
+        public Task<object> InventoryExpansion()
         {
             var data = "[]";
 
-            return Content(data, "application/json");
+            return Task.FromResult<object>(Content(data, "application/json"));
         }
 
         // TODO: Implement
         [HttpGet("squad_builder/lfp")]
         [R5SigAuthRequired]
-        public async Task<object> LookingForPeople()
+        public Task<object> LookingForPeople()
         {
             var data = "{ total_count: 0, results: [] }";
 
-            return Content(data, "application/json");
+            return Task.FromResult<object>(Content(data, "application/json"));
         }
 
         protected async Task<long> GetAid()

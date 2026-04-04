@@ -32,8 +32,8 @@ namespace RIN.InternalAPI.Models
         [ProtoMember(1)] public ulong  CharacterGuid    { get; set; }
         [ProtoMember(2)] public int    LoadoutId        { get; set; }
         [ProtoMember(3)] public int    ChassisSdbId     { get; set; }
-        [ProtoMember(4)] public string VisualsJson      { get; set; }
-        [ProtoMember(5)] public string SlottedItemsJson { get; set; }
+        [ProtoMember(4)] public string VisualsJson      { get; set; } = string.Empty;
+        [ProtoMember(5)] public string SlottedItemsJson { get; set; } = string.Empty;
     }
 
     [ProtoContract]
