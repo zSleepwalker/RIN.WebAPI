@@ -96,16 +96,6 @@ namespace RIN.WebAPI.Controllers
             return Content("{}", "application/json");
         }
 
-        // TODO: Implement
-        [HttpGet("characters/{characterGuid}/mail")]
-        [R5SigAuthRequired]
-        public async Task<object> ListMailbox(long characterGuid, [FromQuery(Name = "page")] int page)
-        {
-            var data = "{ count: 0, results: [] }";
-
-            return Content(data, "application/json");
-        }
-
         // TOOD: Implement
         [HttpGet("characters/{characterGuid}/market/listings")]
         [R5SigAuthRequired]
