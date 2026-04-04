@@ -123,6 +123,8 @@ namespace RIN.Core.DB
                     {
                         var charaterVisuals = Serializer.Deserialize<CharacterVisuals>(visuals.AsSpan());
 
+                        CharacterUtil.NormalizeHairVisuals(charaterVisuals);
+
                         charaterVisuals.ornaments ??= new List<WebId>();
 
                         character.visuals = new CharacterBattleframeCombinedVisuals();
@@ -175,6 +177,7 @@ namespace RIN.Core.DB
                 map: (charinfo, visuals) =>
                 {
                     var parsedVisuals = Utils.MiscUtils.FromProtoBuffByteArray<CharacterVisuals>(visuals.AsSpan()) ?? new CharacterVisuals();
+                    CharacterUtil.NormalizeHairVisuals(parsedVisuals);
                     return (charinfo, parsedVisuals);
                 },
                 splitOn: "visuals",
@@ -189,6 +192,8 @@ namespace RIN.Core.DB
             const string UPDATE_SQL = @"UPDATE webapi.""Characters""
 	                            SET gender = @gender, race = @race, visuals = @visualsBlob
 	                            WHERE character_guid = @charId;";
+
+            CharacterUtil.NormalizeHairVisuals(visuals);
 
             var visualsBlob = Utils.MiscUtils.ToProtoBuffByteArray(visuals);
             var result = await DBCall(conn => conn.ExecuteAsync(UPDATE_SQL, new { charId, visuals.gender, visuals.race, visualsBlob }));

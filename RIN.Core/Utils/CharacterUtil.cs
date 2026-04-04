@@ -97,13 +97,21 @@ namespace RIN.Core.Utils
 
         public static CharacterVisuals UpdateCharacterVisualsFromGarage(CharacterVisuals cv, PlayerVisualLoadout updates, NewCharaterColors colors)
         {
+            NormalizeHairVisuals(cv);
+
             cv.race             = updates.race;
             cv.gender           = updates.gender;
             cv.voice_set.id     = updates.voice_set_id;
             cv.head.id          = updates.head_id;
             cv.lip_color.id     = updates.lip_color_id;
-            cv.facial_hair.id   = updates.facial_hair_color_id;
+            cv.facial_hair_color.id = updates.facial_hair_color_id;
             cv.eyes.id          = updates.eye_id;
+
+            // Client treats hair/facial hair as head accessories; keep both representations in sync.
+            if (cv.head_accessories.Count == 0)
+            {
+                cv.head_accessories.Add(new WebIdValueColor(updates.hair_id, colors.HairColor));
+            }
 
             if (cv.skin_color.id != updates.skin_color_id)
             {
@@ -114,26 +122,45 @@ namespace RIN.Core.Utils
             if (cv.eye_color.id != updates.eye_color_id)
             {
                 cv.eye_color.id = updates.eye_color_id;
-                cv.eye_color.value.color = colors.SkinColor;
+                cv.eye_color.value.color = colors.EyeColor;
             }
 
             if (cv.hair.id != updates.hair_id)
             {
                 cv.hair.id = updates.hair_id;
+                cv.head_accessories[0].id = updates.hair_id;
             }
 
             if (cv.facial_hair.id != updates.facial_hair_id)
             {
                 cv.facial_hair.id = updates.facial_hair_id;
+                if (updates.facial_hair_id > 0)
+                {
+                    if (cv.head_accessories.Count > 1)
+                    {
+                        cv.head_accessories[1].id = updates.facial_hair_id;
+                    }
+                    else
+                    {
+                        cv.head_accessories.Add(new WebIdValueColor(updates.facial_hair_id, colors.HairColor));
+                    }
+                }
             }
 
             if (cv.hair_color.id != updates.hair_color_id)
             {
                 cv.hair_color.id                  = updates.hair_color_id;
                 cv.hair_color.value.color         = colors.HairColor;
+                cv.head_accessories[0].value.color = colors.HairColor;
+                cv.hair.color.id                  = updates.hair_color_id;
                 cv.hair.color.value               = colors.HairColor;
 
-                cv.facial_hair.id                 = updates.hair_color_id;
+                cv.facial_hair_color.id           = updates.facial_hair_color_id;
+                if (cv.head_accessories.Count > 1)
+                {
+                    cv.head_accessories[1].value.color = colors.HairColor;
+                }
+                cv.facial_hair.color.id           = updates.facial_hair_color_id;
                 cv.facial_hair.color.value        = colors.HairColor;
                 cv.facial_hair_color.value.color  = colors.HairColor;
             }
@@ -144,7 +171,67 @@ namespace RIN.Core.Utils
                 cv.ornaments.Add(new WebId(ornament.remote_id));
             }
 
+            NormalizeHairVisuals(cv);
             return cv;
+        }
+
+        public static void NormalizeHairVisuals(CharacterVisuals cv)
+        {
+            cv.hair ??= new WebIdValueColorId();
+            cv.facial_hair ??= new WebIdValueColorId();
+            cv.hair_color ??= new WebIdValueColor();
+            cv.facial_hair_color ??= new WebIdValueColor();
+            cv.hair_color.value ??= new WebColor();
+            cv.facial_hair_color.value ??= new WebColor();
+            cv.hair.color ??= new WebColorId();
+            cv.facial_hair.color ??= new WebColorId();
+            cv.head_accessories ??= new List<WebIdValueColor>();
+
+            var hairId = cv.hair.id;
+            if (hairId <= 0 && cv.head_accessories.Count > 0)
+            {
+                hairId = cv.head_accessories[0].id;
+            }
+
+            var facialHairId = cv.facial_hair.id;
+            if (facialHairId <= 0 && cv.head_accessories.Count > 1)
+            {
+                facialHairId = cv.head_accessories[1].id;
+            }
+
+            cv.hair.id = hairId;
+            cv.facial_hair.id = facialHairId;
+
+            // Keep color IDs and packed values aligned across all representations.
+            cv.hair.color.id = cv.hair_color.id;
+            cv.hair.color.value = cv.hair_color.value.color;
+
+            if (cv.facial_hair_color.id == 0)
+            {
+                cv.facial_hair_color.id = cv.hair_color.id;
+            }
+
+            if (cv.facial_hair_color.value.color == 0)
+            {
+                cv.facial_hair_color.value.color = cv.hair_color.value.color;
+            }
+
+            cv.facial_hair.color.id = cv.facial_hair_color.id;
+            cv.facial_hair.color.value = cv.facial_hair_color.value.color;
+
+            // Always derive accessory slots from hair fields to avoid stale ordering/content.
+            var normalizedAccessories = new List<WebIdValueColor>(2);
+            if (cv.hair.id > 0)
+            {
+                normalizedAccessories.Add(new WebIdValueColor(cv.hair.id, cv.hair_color.value.color));
+            }
+
+            if (cv.facial_hair.id > 0)
+            {
+                normalizedAccessories.Add(new WebIdValueColor(cv.facial_hair.id, cv.facial_hair_color.value.color));
+            }
+
+            cv.head_accessories = normalizedAccessories;
         }
     }
 }

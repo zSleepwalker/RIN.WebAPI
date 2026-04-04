@@ -1,5 +1,7 @@
 using System.Threading.Channels;
+using System.Net.Sockets;
 using Grpc.Core;
+using Microsoft.AspNetCore.Connections;
 using RIN.Core.DB;
 using RIN.Core.Models;
 using RIN.InternalAPI.Models;
@@ -168,7 +170,11 @@ namespace RIN.InternalAPI.Services
                 await cts.CancelAsync();
                 await Task.WhenAll(sendEventsTask, commandsTask);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (IsExpectedStreamTermination(ex, token))
+            {
+                Logger.LogInformation("GRPC Stream ended: client disconnected or connection reset");
+            }
+            catch (Exception ex)
             {
                 Logger.LogError(ex, "GRPC Stream crashed");
             }
@@ -177,6 +183,34 @@ namespace RIN.InternalAPI.Services
                 channel.Writer.TryComplete();
                 EventBus.Unsubscribe(subscriptionId);
             }
+        }
+
+        private static bool IsExpectedStreamTermination(Exception ex, CancellationToken token)
+        {
+            if (token.IsCancellationRequested || ex is OperationCanceledException)
+            {
+                return true;
+            }
+
+            if (ex is RpcException rpcEx && (rpcEx.StatusCode is StatusCode.Cancelled or StatusCode.Unavailable))
+            {
+                return true;
+            }
+
+            if (ex is IOException ioEx)
+            {
+                if (ioEx.InnerException is ConnectionAbortedException or ConnectionResetException)
+                {
+                    return true;
+                }
+
+                if (ioEx.InnerException is SocketException socketEx && socketEx.SocketErrorCode == SocketError.ConnectionReset)
+                {
+                    return true;
+                }
+            }
+
+            return ex.GetBaseException() is SocketException { SocketErrorCode: SocketError.ConnectionReset };
         }
     }
 }

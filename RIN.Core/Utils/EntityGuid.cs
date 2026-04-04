@@ -1,4 +1,4 @@
-﻿namespace RIN.Core.Utils
+namespace RIN.Core.Utils
 {
     // From: https://gist.github.com/SilentCLD/881839a9f45578f1618db012fc789a71
 
@@ -67,9 +67,9 @@
     EntityGuid parsed = EntityGuid.Parse(0x1F54FA9E38037701);
     EntityGuid generated = new(31, 1425710592, 3670903, 0x01);
 
-    Console.WriteLine( "        ServerId   Counter    Type           Timestamp                     Full");
-    Console.WriteLine($"Parsed   : {parsed.ServerId}      {parsed.Counter}    0x{parsed.Type:X2}    {DateTimeOffset.FromUnixTimeSeconds(parsed.Timestamp)}    0x{parsed.Full:X16}");
-    Console.WriteLine($"Generated: {generated.ServerId}      {generated.Counter}    0x{generated.Type:X2}    {DateTimeOffset.FromUnixTimeSeconds(generated.Timestamp)}    0x{generated.Full:X16}");
+    Serilog.Log.Information( "        ServerId   Counter    Type           Timestamp                     Full");
+    Serilog.Log.Information($"Parsed   : {parsed.ServerId}      {parsed.Counter}    0x{parsed.Type:X2}    {DateTimeOffset.FromUnixTimeSeconds(parsed.Timestamp)}    0x{parsed.Full:X16}");
+    Serilog.Log.Information($"Generated: {generated.ServerId}      {generated.Counter}    0x{generated.Type:X2}    {DateTimeOffset.FromUnixTimeSeconds(generated.Timestamp)}    0x{generated.Full:X16}");
     */
 
     // Output:

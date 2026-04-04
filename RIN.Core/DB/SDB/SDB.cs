@@ -59,8 +59,9 @@ namespace RIN.Core.DB.SDB
                      WHERE head_id = @headId
                        AND (
                             @gender IS NULL
-                            OR sex_id = @gender
-                            OR sex_id IN (2, 3)
+                            OR sex = CASE @gender WHEN 0 THEN 'M' WHEN 1 THEN 'F' ELSE NULL END
+                            OR sex = CAST(@gender AS text)
+                           OR sex IN ('2', '3')
                        )) AS ""HeadTotal"",
                     (SELECT COUNT(*)
                      FROM sdb.""dbcharacter::VoiceSet""
