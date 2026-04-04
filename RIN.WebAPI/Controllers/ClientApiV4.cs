@@ -1,22 +1,29 @@
 using Microsoft.AspNetCore.Mvc;
 using System;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using RIN.Core.DB;
+using RIN.Core.DB.SDB;
+using RIN.WebAPI.Models.Config;
 
 namespace RIN.WebAPI.Controllers
 {
     [ApiController]
     [Route("Clientapi/api/v4")]
-    public class ClientApiV4 : ControllerBase
+    public partial class ClientApiV4 : TmwController
     {
-        [HttpGet("dashboard/conductor-assets")]
-        public object ConductorAssets()
-        {
-            return new { };
-        }
+        private readonly ServerDefaultsSettings         ServerDefaults;
+        private readonly ILogger<OperatorController>    Logger;
+        private readonly DB                             Db;
+        private readonly SDB                            SDB;
 
-        [HttpGet("dashboard/conductor-events")]
-        public object ConductorEvents()
+        public ClientApiV4(IOptions<ServerDefaultsSettings> serverDefaults, ILogger<OperatorController> logger, DB db, SDB sdb)
         {
-            return new { };
+            ServerDefaults = serverDefaults.Value;
+            Logger         = logger;
+            Db             = db;
+            SDB            = sdb;
         }
 
         [HttpGet("gift_notifications/{characterId}")]

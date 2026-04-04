@@ -114,5 +114,15 @@ namespace RIN.WebAPI.Controllers
 
             return Ok();
         }
+
+        // TODO: Implement
+        [HttpGet("characters/{characterGuid}/garage_slots/{loadoutId}/perks")]
+        [R5SigAuthRequired]
+        public async Task<object> GetPerkRespecs(long characterGuid, int loadoutId)
+        {
+            var data = "{ respecs: 0 }";
+
+            return Content(data, "application/json");
+        }
     }
 }
