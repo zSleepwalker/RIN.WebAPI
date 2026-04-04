@@ -84,6 +84,12 @@ namespace RIN.WebAPI.Controllers
             var playerLoadout   = await Db.GetBasicCharacterAndVisualData(characterGuid);
             if (playerLoadout.info == null) return NotFound();
 
+            var assetsValid = await SDB.ValidateNewCharacterAssets(updates.head_id, updates.voice_set_id, updates.gender);
+            if (!assetsValid)
+            {
+                return ReturnError(new Error(Error.Codes.ERR_INVALID_CHARACTER), 400);
+            }
+
             var colors          = await SDB.GetNewCharactersColors(updates.eye_color_id, updates.skin_color_id, updates.hair_color_id);
             if (colors == null) return BadRequest();
 

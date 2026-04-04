@@ -172,13 +172,13 @@ namespace RIN.WebAPI.Controllers
             var colors      = await Sdb.GetNewCharactersColors(reqData.eye_color_id, reqData.skin_color_id, reqData.hair_color_id);
             if (colors == null) return ReturnError(new Error(Error.Codes.ERR_INVALID_CHARACTER), 400);
 
-            var assetsValid = await Sdb.ValidateNewCharacterAssets(reqData.head, reqData.voice_set);
+            var genderInt   = CharacterUtil.GenderStrToNum(reqData.gender);
+            var assetsValid = await Sdb.ValidateNewCharacterAssets(reqData.head, reqData.voice_set, genderInt);
             if (!assetsValid) return ReturnError(new Error(Error.Codes.ERR_INVALID_CHARACTER), 400);
 
             var loginResult = await Db.GetLoginData(GetUid()); // temp
             if (loginResult == null) return ReturnError(new Error(Error.Codes.ERR_INCORRECT_USERPASS), 401);
 
-            var genderInt  = CharacterUtil.GenderStrToNum(reqData.gender);
             var visuals    = CharacterUtil.CreateVisualsObj(colors, DEFAULT_RACE, genderInt, reqData.eye_color_id, reqData.skin_color_id, reqData.hair_color_id, reqData.voice_set, reqData.head, reqData.head_accessory_a);
             var visualBlob = MiscUtils.ToProtoBuffByteArray(visuals);
 

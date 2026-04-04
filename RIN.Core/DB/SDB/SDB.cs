@@ -50,15 +50,24 @@ namespace RIN.Core.DB.SDB
 
             return result ?? Enumerable.Empty<CosmeticInfo>();
         }
-        public async Task<bool> ValidateNewCharacterAssets(int headId, int voiceSetId)
+        public async Task<bool> ValidateNewCharacterAssets(int headId, int voiceSetId, int? gender = null)
         {
             const string SELECT_SQL = @"
-                SELECT 
-                    (SELECT COUNT(*) FROM sdb.""dbcharacter::Head"" WHERE head_id = @headId) +
-                    (SELECT COUNT(*) FROM sdb.""dbcharacter::VoiceSet"" WHERE id = @voiceSetId) as Total;";
-            
-            var result = await DBCall(conn => conn.QueryFirstOrDefaultAsync<int>(SELECT_SQL, new { headId, voiceSetId }));
-            return result == 2;
+                SELECT
+                    (SELECT COUNT(*)
+                     FROM sdb.""dbcharacter::Head""
+                     WHERE head_id = @headId
+                       AND (
+                            @gender IS NULL
+                            OR sex_id = @gender
+                            OR sex_id IN (2, 3)
+                       )) AS ""HeadTotal"",
+                    (SELECT COUNT(*)
+                     FROM sdb.""dbcharacter::VoiceSet""
+                     WHERE id = @voiceSetId) AS ""VoiceTotal"";";
+
+            var result = await DBCall(conn => conn.QueryFirstOrDefaultAsync<(int HeadTotal, int VoiceTotal)>(SELECT_SQL, new { headId, voiceSetId, gender }));
+            return result.HeadTotal == 1 && result.VoiceTotal == 1;
         }
 
         public async Task<IEnumerable<SdbStarterLoadoutSlot>> GetChassisDefaultLoadoutSlots(int chassisId)
