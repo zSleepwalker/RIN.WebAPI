@@ -95,7 +95,11 @@ namespace RIN.Core.Utils
             return blocked.Any(w => normalized.Contains(w));
         }
 
-        public static CharacterVisuals UpdateCharacterVisualsFromGarage(CharacterVisuals cv, PlayerVisualLoadout updates, NewCharaterColors colors)
+        public static CharacterVisuals UpdateCharacterVisualsFromGarage(
+            CharacterVisuals cv,
+            PlayerVisualLoadout updates,
+            NewCharaterColors colors,
+            IReadOnlyDictionary<int, int>? ornamentUsageById = null)
         {
             NormalizeHairVisuals(cv);
 
@@ -165,14 +169,49 @@ namespace RIN.Core.Utils
                 cv.facial_hair_color.value.color  = colors.HairColor;
             }
 
-            cv.ornaments.Clear();
-            foreach (var ornament in updates.ornaments)
-            {
-                cv.ornaments.Add(new WebId(ornament.remote_id));
-            }
+            cv.ornaments = NormalizeOrnaments(updates.ornaments, ornamentUsageById);
 
             NormalizeHairVisuals(cv);
             return cv;
+        }
+
+        private static List<WebId> NormalizeOrnaments(IReadOnlyList<RemoteItem>? requestedOrnaments, IReadOnlyDictionary<int, int>? ornamentUsageById)
+        {
+            if (requestedOrnaments == null || requestedOrnaments.Count == 0)
+            {
+                return new List<WebId>();
+            }
+
+            // Keep the latest selected ornament for each known usage bucket (eye/ear/mouth/etc)
+            // and dedupe unknown ornaments by id while preserving the latest user order.
+            var byUsage = new Dictionary<int, (int Index, int Id)>();
+            var byId = new Dictionary<int, int>();
+
+            for (int index = 0; index < requestedOrnaments.Count; index++)
+            {
+                int ornamentId = requestedOrnaments[index]?.remote_id ?? 0;
+                if (ornamentId <= 0)
+                {
+                    continue;
+                }
+
+                if (ornamentUsageById != null && ornamentUsageById.TryGetValue(ornamentId, out int usage))
+                {
+                    byUsage[usage] = (index, ornamentId);
+                    continue;
+                }
+
+                byId[ornamentId] = index;
+            }
+
+            var normalized = byUsage
+                .Values
+                .Concat(byId.Select(pair => (Index: pair.Value, Id: pair.Key)))
+                .OrderBy(pair => pair.Index)
+                .Select(pair => new WebId(pair.Id))
+                .ToList();
+
+            return normalized;
         }
 
         public static void NormalizeHairVisuals(CharacterVisuals cv)

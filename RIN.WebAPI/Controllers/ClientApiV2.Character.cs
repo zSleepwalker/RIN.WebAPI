@@ -93,7 +93,11 @@ namespace RIN.WebAPI.Controllers
             var colors          = await SDB.GetNewCharactersColors(updates.eye_color_id, updates.skin_color_id, updates.hair_color_id);
             if (colors == null) return BadRequest();
 
-            playerLoadout.visuals = CharacterUtil.UpdateCharacterVisualsFromGarage(playerLoadout.visuals, updates, colors);
+            var ornamentUsageById = (await SDB.GetOrnamentsInfoList())
+                .GroupBy(item => item.id)
+                .ToDictionary(group => group.Key, group => group.Last().usage);
+
+            playerLoadout.visuals = CharacterUtil.UpdateCharacterVisualsFromGarage(playerLoadout.visuals, updates, colors, ornamentUsageById);
 
             await Db.UpdateCharacterVisuals(characterGuid, playerLoadout.visuals);
 

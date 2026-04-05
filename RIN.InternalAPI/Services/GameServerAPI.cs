@@ -58,8 +58,13 @@ namespace RIN.InternalAPI.Services
 
         public async ValueTask<CharacterInventoryResponse> GetCharacterInventory(CharacterID req)
         {
+            var dbLoadouts = (await DB.GetCharacterLoadouts(req.ID)).ToList();
+            if (await DB.EnsureBattleframeRecords(req.ID, dbLoadouts.Select(loadout => loadout.ChassisSdbId)))
+            {
+                dbLoadouts = (await DB.GetCharacterLoadouts(req.ID)).ToList();
+            }
+
             var dbInventory = await DB.GetCharacterInventory(req.ID);
-            var dbLoadouts  = await DB.GetCharacterLoadouts(req.ID);
             var resp = new CharacterInventoryResponse();
 
             foreach (var item in dbInventory.items)
@@ -87,7 +92,13 @@ namespace RIN.InternalAPI.Services
                     LoadoutId = loadout.LoadoutId,
                     ChassisSdbId = loadout.ChassisSdbId,
                     Visuals = loadout.Visuals,
-                    SlottedItems = loadout.SlottedItems
+                    SlottedItems = loadout.SlottedItems,
+                    Level = loadout.Level,
+                    CurrentXp = loadout.CurrentXp,
+                    LifetimeXp = loadout.LifetimeXp,
+                    EliteLevel = loadout.EliteLevel,
+                    EliteXp = loadout.EliteXp,
+                    ElitePoints = loadout.ElitePoints,
                 });
             }
 
@@ -171,6 +182,9 @@ namespace RIN.InternalAPI.Services
                                     break;
                                 case SaveCharacterUnlock unlock:
                                     await DB.UpsertCharacterUnlock((long)unlock.CharacterGuid, unlock.UnlockType, (int)unlock.UnlockId, (int)unlock.FrameId);
+                                    break;
+                                case SaveCurrentBattleframe currentBattleframe:
+                                    await DB.SetCharacterCurrentBattleframeBySdbId((long)currentBattleframe.CharacterGuid, currentBattleframe.ChassisSdbId);
                                     break;
                             }
                         }

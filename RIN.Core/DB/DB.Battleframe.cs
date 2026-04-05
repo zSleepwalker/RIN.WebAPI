@@ -10,6 +10,18 @@ namespace RIN.Core.DB
 {
     public partial class DB
     {
+                public async Task<long?> GetBattleframeId(long characterId, int battleframeSdbId)
+                {
+                        const string SELECT_SQL = @"SELECT id
+                                                                                FROM webapi.""Battleframes""
+                                                                                WHERE character_guid = @characterId
+                                                                                    AND battleframe_sdb_id = @battleframeSdbId
+                                                                                ORDER BY id
+                                                                                LIMIT 1;";
+
+                        return await DBCall(conn => conn.QueryFirstOrDefaultAsync<long?>(SELECT_SQL, new { characterId, battleframeSdbId }));
+                }
+
         public async ValueTask<long?> CreateBattleframeLoadout(long characterId, int battleframeSdId, PlayerBattleframeVisuals visuals)
         {
             const string INSERT_SQL = @"INSERT INTO webapi.""Battleframes""(
@@ -26,6 +38,50 @@ namespace RIN.Core.DB
                 });
 
             return result?.Single() ?? -1;
+        }
+
+        public async Task<long?> EnsureBattleframeRecord(long characterId, int battleframeSdbId, PlayerBattleframeVisuals? visuals = null)
+        {
+            var existingId = await GetBattleframeId(characterId, battleframeSdbId);
+            if (existingId.HasValue && existingId.Value > 0)
+            {
+                return existingId.Value;
+            }
+
+            return await CreateBattleframeLoadout(characterId, battleframeSdbId, visuals ?? PlayerBattleframeVisuals.CreateDefault());
+        }
+
+        public async Task<bool> EnsureBattleframeRecords(long characterId, IEnumerable<int> battleframeSdbIds)
+        {
+            bool changed = false;
+
+            foreach (var battleframeSdbId in battleframeSdbIds.Where(id => id > 0).Distinct())
+            {
+                var existingId = await GetBattleframeId(characterId, battleframeSdbId);
+                if (existingId.HasValue && existingId.Value > 0)
+                {
+                    continue;
+                }
+
+                var createdId = await CreateBattleframeLoadout(characterId, battleframeSdbId, PlayerBattleframeVisuals.CreateDefault());
+                if (createdId.HasValue && createdId.Value > 0)
+                {
+                    changed = true;
+                }
+            }
+
+            return changed;
+        }
+
+        public async Task<bool> SetCharacterCurrentBattleframeBySdbId(long charId, int battleframeSdbId)
+        {
+            var battleframeId = await EnsureBattleframeRecord(charId, battleframeSdbId);
+            if (!battleframeId.HasValue || battleframeId.Value <= 0)
+            {
+                return false;
+            }
+
+            return await SetCharacterCurrentBattleframe(charId, battleframeId.Value);
         }
 
         public async Task<bool> UpdateBattleframeVisuals(long battleframeId, PlayerBattleframeVisuals visuals)

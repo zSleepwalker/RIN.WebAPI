@@ -1,11 +1,94 @@
 using Microsoft.AspNetCore.Mvc;
 using RIN.Core;
 using RIN.WebAPI.Utils;
+using System.Text.Json;
 
 namespace RIN.WebAPI.Controllers
 {
     public partial class ClientAPiV3
     {
+        [HttpPost("characters/{characterGuid}/garage_slots/purchase_battleframe")]
+        [R5SigAuthRequired]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<object> PurchaseBattleframe(long characterGuid, [FromBody] JsonElement? body = null)
+        {
+            if (characterGuid != GetCid())
+            {
+                return ReturnError(Error.Codes.ERR_UNKNOWN, "Unauthorized", StatusCodes.Status403Forbidden);
+            }
+
+            var frameSdbId = ParsePositiveInt(body, "sdb_id", "frame_id", "battleframe_sdb_id");
+            if (frameSdbId <= 0)
+            {
+                return ReturnError(Error.Codes.ERR_UNKNOWN, "Invalid battleframe id", StatusCodes.Status400BadRequest);
+            }
+
+            var loadouts = (await Db.GetCharacterLoadouts(characterGuid)).ToList();
+            if (loadouts.Any(l => l.ChassisSdbId == frameSdbId))
+            {
+                await Db.EnsureBattleframeRecord(characterGuid, frameSdbId);
+                return ReturnError(Error.Codes.ERR_UNKNOWN, "Battleframe already owned", StatusCodes.Status400BadRequest);
+            }
+
+            int nextLoadoutId = loadouts.Count == 0 ? 1 : loadouts.Max(l => l.LoadoutId) + 1;
+            bool saved = await BattleframeLoadoutBuilder.CreateLoadoutWithDefaults(Db, SDB, characterGuid, nextLoadoutId, frameSdbId);
+            if (!saved)
+            {
+                return ReturnError(Error.Codes.ERR_UNKNOWN, "Failed to create battleframe loadout", StatusCodes.Status400BadRequest);
+            }
+
+            await Db.SetCharacterCurrentBattleframeBySdbId(characterGuid, frameSdbId);
+
+            return Content("{}", "application/json");
+        }
+
+        [HttpPost("characters/{characterGuid}/garage_slots/unlock_slot")]
+        [R5SigAuthRequired]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public object UnlockGarageSlot(long characterGuid, [FromBody] JsonElement? body = null)
+        {
+            if (characterGuid != GetCid())
+            {
+                return ReturnError(Error.Codes.ERR_UNKNOWN, "Unauthorized", StatusCodes.Status403Forbidden);
+            }
+
+            Serilog.Log.Information("UnlockGarageSlot: characterGuid={characterGuid}, payload={payload}", characterGuid, body?.GetRawText() ?? "{}");
+            return Content("{}", "application/json");
+        }
+
+        private static int ParsePositiveInt(JsonElement? body, params string[] keys)
+        {
+            if (body == null || body.Value.ValueKind != JsonValueKind.Object)
+            {
+                return 0;
+            }
+
+            foreach (var key in keys)
+            {
+                if (!body.Value.TryGetProperty(key, out var value))
+                {
+                    continue;
+                }
+
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var numeric) && numeric > 0)
+                {
+                    return numeric;
+                }
+
+                if (value.ValueKind == JsonValueKind.String
+                    && int.TryParse(value.GetString(), out var textNumeric)
+                    && textNumeric > 0)
+                {
+                    return textNumeric;
+                }
+            }
+
+            return 0;
+        }
+
         [HttpGet("characters/{characterGuid}/army_applications")]
         [R5SigAuthRequired]
         [ProducesResponseType(StatusCodes.Status200OK)]

@@ -24,6 +24,12 @@ namespace RIN.Core.Models
         [ProtoMember(2)] public int ChassisSdbId { get; set; }
         [ProtoMember(3)] public string Visuals { get; set; } = "{}"; // JSON
         [ProtoMember(4)] public string SlottedItems { get; set; } = "{}"; // JSON (Map<Slot, ItemGuid>)
+        [ProtoMember(5)] public int Level { get; set; } = 1;
+        [ProtoMember(6)] public long CurrentXp { get; set; }
+        [ProtoMember(7)] public long LifetimeXp { get; set; }
+        [ProtoMember(8)] public int EliteLevel { get; set; }
+        [ProtoMember(9)] public long EliteXp { get; set; }
+        [ProtoMember(10)] public int ElitePoints { get; set; }
     }
 
     [ProtoContract]

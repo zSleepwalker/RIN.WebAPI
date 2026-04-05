@@ -118,6 +118,12 @@ message CharacterLoadout {
    int32 ChassisSdbId = 2;
    string Visuals = 3;
    string SlottedItems = 4;
+   int32 Level = 5;
+   int64 CurrentXp = 6;
+   int64 LifetimeXp = 7;
+   int32 EliteLevel = 8;
+   int64 EliteXp = 9;
+   int32 ElitePoints = 10;
 }
 message CharacterResource {
    uint32 SdbId = 1;
@@ -157,6 +163,7 @@ message Command {
       SaveLgvRaceFinish SaveLgvRaceFinish = 2;
       SaveCharacterLoadout SaveCharacterLoadout = 3;
       SaveCharacterUnlock SaveCharacterUnlock = 4;
+      SaveCurrentBattleframe SaveCurrentBattleframe = 5;
    }
 }
 message ConsumeItemReq {
@@ -223,6 +230,10 @@ message SaveCharacterUnlock {
    string UnlockType = 2;
    uint32 UnlockId = 3;
    uint32 FrameId = 4;
+}
+message SaveCurrentBattleframe {
+   uint64 CharacterGuid = 1;
+   int32 ChassisSdbId = 2;
 }
 message SaveGameSessionData {
    uint64 CharacterId = 1;

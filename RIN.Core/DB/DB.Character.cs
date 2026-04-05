@@ -559,6 +559,12 @@ namespace RIN.Core.DB
                     cl.loadout_id AS LoadoutId,
                     cl.battleframe_sdb_id AS ChassisSdbId,
                     cl.visuals::text AS Visuals,
+                    COALESCE(bf.level, 1) AS Level,
+                    COALESCE(bf.xp, 0) AS CurrentXp,
+                    COALESCE(bf.xp, 0) AS LifetimeXp,
+                    0 AS EliteLevel,
+                    0 AS EliteXp,
+                    0 AS ElitePoints,
                     COALESCE(
                         (
                             SELECT jsonb_object_agg(cli.slot_type::text, cli.item_guid)::text
@@ -569,6 +575,9 @@ namespace RIN.Core.DB
                         '{}'
                     ) AS SlottedItems
                 FROM webapi.""CharacterLoadouts"" cl
+                LEFT JOIN webapi.""Battleframes"" bf
+                    ON bf.character_guid = cl.character_guid
+                    AND bf.battleframe_sdb_id = cl.battleframe_sdb_id
                 WHERE cl.character_guid = @characterGuid;";
             
             return await DBCall(conn => conn.QueryAsync<CharacterLoadout>(SELECT_SQL, new { characterGuid })) ?? Enumerable.Empty<CharacterLoadout>();

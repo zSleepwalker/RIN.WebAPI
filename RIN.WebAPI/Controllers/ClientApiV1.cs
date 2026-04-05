@@ -183,79 +183,35 @@ namespace RIN.WebAPI.Controllers
             var visualBlob = MiscUtils.ToProtoBuffByteArray(visuals);
 
             var charId    = await Db.CreateNewCharacter(loginResult.account_id, reqData.name, reqData.is_dev, reqData.voice_set, genderInt, visualBlob);
-            var bfVisuals = PlayerBattleframeVisuals.CreateDefault();
-            var bfId      = await Db.CreateBattleframeLoadout(charId, reqData.start_class_id, bfVisuals);
-            await Db.SetCharacterCurrentBattleframe(charId, bfId!.Value);
-            var starterItemGuids = new Dictionary<int, Queue<ulong>>();
 
-            var starterSlots = (await Sdb.GetChassisDefaultLoadoutSlots(reqData.start_class_id)).ToArray();
-            if (starterSlots.Length > 0)
+            foreach (var itemSdbId in StarterInventory.FallbackInventoryItems)
             {
-                var slottedItems = new Dictionary<byte, ulong>();
-                foreach (var slot in starterSlots)
-                {
-                    if (slot.DefaultPveModule == 0)
-                    {
-                        continue;
-                    }
+                await Db.AddCharacterItem(charId, (int)itemSdbId);
+            }
 
-                    if (!starterItemGuids.TryGetValue(slot.DefaultPveModule, out var availableGuids) || availableGuids.Count == 0)
-                    {
-                        var itemGuid = await Db.AddCharacterItem(charId, slot.DefaultPveModule);
-                        if (itemGuid <= 0)
-                        {
-                            return ReturnError(new Error(Error.Codes.ERR_UNKNOWN, $"Failed to create starter slot item {slot.DefaultPveModule}"), 500);
-                        }
+            foreach (var (resourceSdbId, quantity) in StarterInventory.FallbackInventoryResources)
+            {
+                await Db.AddOrUpdateCharacterResource(charId, (int)resourceSdbId, (int)quantity);
+            }
 
-                        availableGuids = new Queue<ulong>();
-                        availableGuids.Enqueue((ulong)itemGuid);
-                        starterItemGuids[slot.DefaultPveModule] = availableGuids;
-                    }
+            var starterFrames = ClientAPiV3.StarterBattleframeIds
+                .Prepend(reqData.start_class_id)
+                .Distinct()
+                .ToArray();
 
-                    slottedItems[(byte)slot.SlotType] = availableGuids.Dequeue();
-                }
-
-                    // Vehicle (subtype 83) and Glider (subtype 3709) slots are not in the SDB's
-                    // CharCreateLoadoutSlots table (slot types 157/158 don't exist there), so they
-                    // are never picked up by the starterSlots loop above. Add them explicitly.
-                    const uint DefaultVehicleSdbId = 77087;
-                    const uint DefaultGliderSdbId  = 81423;
-                    const byte VehicleSlotType = 157;
-                    const byte GliderSlotType  = 158;
-
-                    if (!slottedItems.ContainsKey(VehicleSlotType))
-                    {
-                        if (!starterItemGuids.TryGetValue((int)DefaultVehicleSdbId, out var vehicleGuids) || vehicleGuids.Count == 0)
-                        {
-                            var itemGuid = await Db.AddCharacterItem(charId, (int)DefaultVehicleSdbId);
-                            if (itemGuid <= 0)
-                                return ReturnError(new Error(Error.Codes.ERR_UNKNOWN, $"Failed to create starter vehicle item"), 500);
-                            vehicleGuids = new Queue<ulong>();
-                            vehicleGuids.Enqueue((ulong)itemGuid);
-                            starterItemGuids[(int)DefaultVehicleSdbId] = vehicleGuids;
-                        }
-                        slottedItems[VehicleSlotType] = vehicleGuids.Dequeue();
-                    }
-
-                    if (!slottedItems.ContainsKey(GliderSlotType))
-                    {
-                        if (!starterItemGuids.TryGetValue((int)DefaultGliderSdbId, out var gliderGuids) || gliderGuids.Count == 0)
-                        {
-                            var itemGuid = await Db.AddCharacterItem(charId, (int)DefaultGliderSdbId);
-                            if (itemGuid <= 0)
-                                return ReturnError(new Error(Error.Codes.ERR_UNKNOWN, $"Failed to create starter glider item"), 500);
-                            gliderGuids = new Queue<ulong>();
-                            gliderGuids.Enqueue((ulong)itemGuid);
-                            starterItemGuids[(int)DefaultGliderSdbId] = gliderGuids;
-                        }
-                        slottedItems[GliderSlotType] = gliderGuids.Dequeue();
-                    }
-
-                var loadoutSaved = await Db.SaveCharacterLoadout(charId, 1, reqData.start_class_id, JsonSerializer.Serialize(Array.Empty<object>()), JsonSerializer.Serialize(slottedItems));
+            for (int index = 0; index < starterFrames.Length; index++)
+            {
+                bool loadoutSaved = await BattleframeLoadoutBuilder.CreateLoadoutWithDefaults(Db, Sdb, charId, index + 1, starterFrames[index]);
                 if (!loadoutSaved)
                 {
-                    return ReturnError(new Error(Error.Codes.ERR_UNKNOWN, "Failed to persist starter loadout"), 500);
+                    return ReturnError(new Error(Error.Codes.ERR_UNKNOWN, $"Failed to persist starter loadout for battleframe {starterFrames[index]}"), 500);
                 }
+            }
+
+            bool currentFrameSet = await Db.SetCharacterCurrentBattleframeBySdbId(charId, reqData.start_class_id);
+            if (!currentFrameSet)
+            {
+                return ReturnError(new Error(Error.Codes.ERR_UNKNOWN, "Failed to set current battleframe"), 500);
             }
 
             var createData = new CreateCharacterResp
