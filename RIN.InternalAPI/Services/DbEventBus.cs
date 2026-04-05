@@ -136,7 +136,8 @@ namespace RIN.InternalAPI.Services
             try
             {
                 var result = await Db.GetBasicCharacterAndVisualData((long)cvu.CharacterGuid);
-                var bfVisuals = PlayerBattleframeVisuals.CreateDefault();
+                var bfVisuals = await Db.GetCurrentBattleframeVisuals((long)cvu.CharacterGuid)
+                                ?? PlayerBattleframeVisuals.CreateDefault();
 
                 cvu.CharacterAndBattleframeVisuals = new CharacterAndBattleframeVisuals
                 {

@@ -40,5 +40,29 @@ namespace RIN.Core.DB
             return result > 0;
         }
 
+        public async Task<PlayerBattleframeVisuals?> GetCurrentBattleframeVisuals(long characterId)
+        {
+            const string SELECT_SQL = @"SELECT bf.visuals
+                                        FROM webapi.""Characters"" c
+                                        LEFT JOIN webapi.""Battleframes"" bf ON bf.id = c.current_battleframe_guid
+                                        WHERE c.character_guid = @characterId";
+
+            var visualsBlob = await DBCall(conn => conn.QueryFirstOrDefaultAsync<byte[]>(SELECT_SQL, new { characterId }));
+            if (visualsBlob == null || visualsBlob.Length == 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                return Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(visualsBlob.AsSpan());
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Failed to deserialize battleframe visuals for character {characterId}", characterId);
+                return null;
+            }
+        }
+
     }
 }

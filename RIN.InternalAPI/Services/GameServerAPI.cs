@@ -43,7 +43,8 @@ namespace RIN.InternalAPI.Services
         public async ValueTask<CharacterAndBattleframeVisuals> GetCharacterAndBattleframeVisuals(CharacterID req)
         {
             var result    = await DB.GetBasicCharacterAndVisualData(req.ID);
-            var bfVisuals = PlayerBattleframeVisuals.CreateDefault();
+            var bfVisuals = await DB.GetCurrentBattleframeVisuals(req.ID)
+                            ?? PlayerBattleframeVisuals.CreateDefault();
 
             var resp = new CharacterAndBattleframeVisuals
             {
