@@ -78,7 +78,8 @@ namespace RIN.Core.DB
                             zoneSettingsDict.Add(zoneEntry.id, zoneEntry);
                         }
 
-                        zoneEntry.images = JsonConvert.DeserializeObject<ZoneImages>(zoneImages);
+                        zoneEntry.images = JsonConvert.DeserializeObject<ZoneImages>(zoneImages)
+                            ?? new ZoneImages { thumbnail = string.Empty, lfg = string.Empty };
 
                         if (zoneCertRequirements != null && !certRequirementsIds.Contains(zoneCertRequirements.id))
                         {

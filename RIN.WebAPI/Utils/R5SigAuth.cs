@@ -56,7 +56,11 @@ namespace RIN.WebAPI.Utils
             {
                 request.EnableBuffering();
                 var bodyBytes = new byte[request.ContentLength ?? 0];
-                await request.Body.ReadAsync(bodyBytes, 0, bodyBytes.Length);
+                if (bodyBytes.Length > 0)
+                {
+                    await request.Body.ReadExactlyAsync(bodyBytes, context.HttpContext.RequestAborted);
+                }
+
                 request.Body.Position = 0; // Reset for the controller
 
                 using var sha1 = System.Security.Cryptography.SHA1.Create();
