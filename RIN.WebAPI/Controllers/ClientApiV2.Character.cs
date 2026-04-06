@@ -34,8 +34,10 @@ namespace RIN.WebAPI.Controllers
             var loginResult = await Db.GetLoginData(GetUid());
             if (loginResult == null) return Unauthorized();
 
-            resp.is_dev     = loginResult.is_dev;
-            resp.characters = await Db.GetCharactersForAccount(loginResult.account_id);
+            resp.is_dev        = loginResult.is_dev;
+            resp.is_vip        = loginResult.is_vip;
+            resp.vip_expiration = loginResult.vip_expiration;
+            resp.characters    = await Db.GetCharactersForAccount(loginResult.account_id);
 
             var accountMTX        = await Db.GetAccountMTXData(loginResult.account_id);
             if (accountMTX != null) {

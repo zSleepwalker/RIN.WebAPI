@@ -53,9 +53,17 @@ namespace RIN.Core.DB
                 secret,
                 character_limit,
                 true AS                                                             can_login,      
-                (vip.account_id IS NOT NULL AND vip.start_date <= NOW() AND vip.expiration_date > NOW()) AS is_vip,
                 CASE
-                    WHEN vip.account_id IS NOT NULL AND vip.start_date <= NOW() AND vip.expiration_date > NOW()
+                    WHEN vip.account_id IS NOT NULL
+                     AND vip.start_date <= NOW()
+                     AND vip.expiration_date > NOW()
+                        THEN true
+                    ELSE false
+                END AS is_vip,
+                CASE
+                    WHEN vip.account_id IS NOT NULL
+                     AND vip.start_date <= NOW()
+                     AND vip.expiration_date > NOW()
                         THEN EXTRACT(EPOCH FROM vip.expiration_date) * 1000
                     ELSE -1
                 END AS vip_expiration,
