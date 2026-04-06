@@ -283,9 +283,18 @@ namespace RIN.WebAPI.Controllers
         }
 
         [HttpGet("zones/queue_ids")]
-        public object ZoneQueueIds()
+        public async Task<object> ZoneQueueIds()
         {
-            return new { };
+            var zoneSettings = await Db.GetZoneSettings();
+
+            var queueIds = zoneSettings
+                .Where(z => z.queueing_enabled && !z.skip_matchmaking)
+                .Select(z => z.id)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToArray();
+
+            return new { queue_ids = queueIds };
         }
     }
 }

@@ -148,6 +148,11 @@ namespace RIN.Core.DB
                                  last_zone_id as LastZoneId, last_outpost_id as LastOutpostId, c.time_played_secs as TimePlayed,
                                  c.pvp_rank as PvPRank, c.elite_rank as EliteLevel, acc.staff_flags as StaffFlags,
                                  bf.level AS Level, bf.level AS EffectiveLevel, bf.xp AS Xp,
+                                 CASE
+                                     WHEN vd.account_id IS NOT NULL AND vd.start_date <= NOW() AND vd.expiration_date > NOW()
+                                         THEN 1
+                                     ELSE 0
+                                 END AS VipLevel,
                                  c.visuals,
                                  (SELECT modifier FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'xp_boost' AND expiration_date > NOW()) as XpBoostModifier,
                                  (SELECT EXTRACT(EPOCH FROM expiration_date)::bigint FROM webapi.""CharacterBoosts"" WHERE character_guid = c.character_guid AND boost_type = 'xp_boost' AND expiration_date > NOW()) as XpBoostExpiration,
