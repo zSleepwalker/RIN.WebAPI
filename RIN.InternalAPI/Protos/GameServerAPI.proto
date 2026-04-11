@@ -217,6 +217,7 @@ message PlayerBattleframeVisuals {
    repeated int32 decalgradients = 4 [packed = false];
    repeated int32 warpaint_patterns = 5 [packed = false];
    repeated int32 visual_overrides = 6 [packed = false];
+   repeated WebWarpaintPattern warpaint_pattern_data = 7;
 }
 message SaveCharacterLoadout {
    uint64 CharacterGuid = 1;
@@ -268,6 +269,11 @@ message WebIdValueColor {
 message WebIdValueColorId {
    int32 id = 1;
    WebColorId color = 2;
+}
+message WebWarpaintPattern {
+   int32 sdb_id = 1;
+   int32 usage = 2;
+   repeated float transform = 3 [packed = false];
 }
 service GameServerAPI {
    rpc AddCharacterItem (AddCharacterItemReq) returns (AddCharacterItemResp);

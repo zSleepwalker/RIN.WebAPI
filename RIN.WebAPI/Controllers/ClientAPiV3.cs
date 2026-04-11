@@ -133,11 +133,11 @@ namespace RIN.WebAPI.Controllers
                         ? chassisVisuals.Visuals
                         : PlayerBattleframeVisuals.CreateDefault();
                     var decals = battleframeVisuals.decals ?? new List<WebDecal>();
-                    var warpaintPatterns = battleframeVisuals.warpaint_patterns ?? new List<int>();
+                    var warpaintPatterns = battleframeVisuals.GetEffectiveWarpaintPatterns();
                     var visualOverrides = battleframeVisuals.visual_overrides ?? new List<int>();
 
-                    Serilog.Log.Information(
-                        "PAINT_DEBUG GarageSlots: char={CharGuid}, loadout={LoadoutId}, battleframeGuid={BfGuid}, chassis={ChassisSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                    Serilog.Log.Debug(
+                        "GarageSlots: char={CharGuid}, loadout={LoadoutId}, battleframeGuid={BfGuid}, chassis={ChassisSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
                         characterGuid,
                         loadout.LoadoutId,
                         battleframeGuid,
@@ -168,12 +168,11 @@ namespace RIN.WebAPI.Controllers
                         visual_loadout_id = loadout.ChassisSdbId,
                         warpaint_id = battleframeVisuals.warpaint_id,
                         warpaintpatterns = warpaintPatterns
-                            .Where(item => item > 0)
                             .Select(item => new WarpaintPattern
                             {
-                                sdb_id = item,
-                                usage = 0,
-                                transform = Array.Empty<float>(),
+                                sdb_id = item.sdb_id,
+                                usage = item.usage,
+                                transform = item.transform ?? Array.Empty<float>(),
                             })
                             .ToList(),
                         visual_overrides = visualOverrides

@@ -141,21 +141,22 @@ namespace RIN.InternalAPI.Services
                 });
             }
 
-            var patterns = battleframeVisuals.warpaint_patterns ?? new List<int>();
+            var patterns = battleframeVisuals.GetEffectiveWarpaintPatterns();
             for (int index = 0; index < patterns.Count; index++)
             {
-                if (patterns[index] <= 0)
+                var pattern = patterns[index];
+                if (pattern == null || pattern.sdb_id <= 0)
                 {
                     continue;
                 }
 
                 visuals.Add(new PersistedLoadoutVisual
                 {
-                    ItemSdbId = (uint)patterns[index],
+                    ItemSdbId = (uint)pattern.sdb_id,
                     VisualType = PersistedLoadoutVisual.PatternVisualType,
-                    Data1 = (uint)index,
+                    Data1 = (uint)Math.Max(pattern.usage, 0),
                     Data2 = 0,
-                    Transform = Array.Empty<float>(),
+                    Transform = pattern.transform ?? Array.Empty<float>(),
                 });
             }
 
@@ -257,8 +258,8 @@ namespace RIN.InternalAPI.Services
                                     await DB.SaveLgvRaceFinish((long)race.CharacterGuid, (int)race.LeaderboardId, (long)race.TimeMs);
                                     break;
                                 case SaveCharacterLoadout loadout:
-                                    Serilog.Log.Information(
-                                        "PAINT_DEBUG InternalAPI SaveCharacterLoadout: charGuid={CharGuid}, loadoutId={LoadoutId}, chassisSdbId={ChassisSdbId}, visualsJson={VisualsJson}",
+                                        Serilog.Log.Debug(
+                                            "InternalAPI SaveCharacterLoadout: charGuid={CharGuid}, loadoutId={LoadoutId}, chassisSdbId={ChassisSdbId}, visualsJson={VisualsJson}",
                                         loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson);
                                     await DB.SaveCharacterLoadout((long)loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson, loadout.SlottedItemsJson);
                                     break;

@@ -135,21 +135,21 @@ namespace RIN.Core.DB
 
             var visualsBlob = await DBCall(conn => conn.QueryFirstOrDefaultAsync<byte[]>(SELECT_SQL, new { characterId }));
 
-            Serilog.Log.Information(
-                "PAINT_DEBUG GetCurrentBattleframeVisuals: char={CharId}, blobBytes={BlobBytes}",
+                Serilog.Log.Debug(
+                    "GetCurrentBattleframeVisuals: char={CharId}, blobBytes={BlobBytes}",
                 characterId, visualsBlob?.Length ?? 0);
 
             if (visualsBlob == null || visualsBlob.Length == 0)
             {
-                Serilog.Log.Information("PAINT_DEBUG GetCurrentBattleframeVisuals: no visuals blob found for char={CharId}", characterId);
+                    Serilog.Log.Debug("GetCurrentBattleframeVisuals: no visuals blob found for char={CharId}", characterId);
                 return null;
             }
 
             try
             {
                 var result = Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(visualsBlob.AsSpan());
-                Serilog.Log.Information(
-                    "PAINT_DEBUG GetCurrentBattleframeVisuals: deserialized for char={CharId} — warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                Serilog.Log.Debug(
+                    "GetCurrentBattleframeVisuals: deserialized for char={CharId}; warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
                     characterId,
                     result?.warpaint_id ?? 0,
                     result?.warpaint_patterns?.Count ?? 0,
@@ -193,8 +193,8 @@ namespace RIN.Core.DB
                     }
                     catch (Exception ex)
                     {
-                        Serilog.Log.Warning(ex,
-                            "PAINT_DEBUG GetBattleframeVisualsByChassis: failed to deserialize visuals for char={CharId}, battleframeGuid={BattleframeGuid}, chassis={ChassisSdbId}",
+                        Serilog.Log.Debug(ex,
+                            "GetBattleframeVisualsByChassis: failed to deserialize visuals for char={CharId}, battleframeGuid={BattleframeGuid}, chassis={ChassisSdbId}",
                             characterId, row.id, row.battleframe_sdb_id);
                         visuals = PlayerBattleframeVisuals.CreateDefault();
                     }
@@ -225,8 +225,8 @@ namespace RIN.Core.DB
                 }
             }
 
-            Serilog.Log.Information(
-                "PAINT_DEBUG GetBattleframeVisualsByChassis: char={CharId}, chassisCount={ChassisCount}",
+            Serilog.Log.Debug(
+                "GetBattleframeVisualsByChassis: char={CharId}, chassisCount={ChassisCount}",
                 characterId, result.Count);
 
             return result;

@@ -110,13 +110,12 @@ namespace RIN.WebAPI.Controllers
                     })
                     .ToList();
                 loadout.warpaint_id = battleframeVisuals.warpaint_id;
-                loadout.warpaintpatterns = (battleframeVisuals.warpaint_patterns ?? new List<int>())
-                    .Where(id => id > 0)
-                    .Select(id => new WarpaintPattern
+                loadout.warpaintpatterns = battleframeVisuals.GetEffectiveWarpaintPatterns()
+                    .Select(pattern => new WarpaintPattern
                     {
-                        sdb_id = id,
-                        transform = System.Array.Empty<float>(),
-                        usage = 0
+                        sdb_id = pattern.sdb_id,
+                        transform = pattern.transform ?? System.Array.Empty<float>(),
+                        usage = pattern.usage
                     })
                     .ToList();
                 loadout.visual_overrides = (battleframeVisuals.visual_overrides ?? new List<int>())
@@ -128,8 +127,8 @@ namespace RIN.WebAPI.Controllers
                     })
                     .ToList();
 
-                Serilog.Log.Information(
-                    "PAINT_DEBUG VisualLoadouts(v2): char={CharGuid}, loadout={LoadoutId}, chassis={ChassisSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                Serilog.Log.Debug(
+                    "VisualLoadouts(v2): char={CharGuid}, loadout={LoadoutId}, chassis={ChassisSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
                     characterGuid,
                     dbLoadout.LoadoutId,
                     dbLoadout.ChassisSdbId,
@@ -153,6 +152,16 @@ namespace RIN.WebAPI.Controllers
 
             var playerLoadout   = await Db.GetBasicCharacterAndVisualData(characterGuid);
             if (playerLoadout.info == null) return NotFound();
+
+            Serilog.Log.Debug(
+                "PurchaseAndUpdateVisualLoadout(v2) incoming payload: char={CharGuid}, loadoutIdx={LoadoutIdx}, warpaintId={WarpaintId}, patternCount={PatternCount}, decalCount={DecalCount}, patternPayload={PatternPayload}, decalPayload={DecalPayload}",
+                characterGuid,
+                loadoutIdx,
+                updates.warpaint_id,
+                updates.warpaintpatterns?.Count ?? 0,
+                updates.decals?.Count ?? 0,
+                SummarizePatternPayload(updates.warpaintpatterns),
+                SummarizeDecalPayload(updates.decals));
 
             var assetsValid = await SDB.ValidateNewCharacterAssets(updates.head_id, updates.voice_set_id, updates.gender);
             if (!assetsValid)
@@ -185,8 +194,8 @@ namespace RIN.WebAPI.Controllers
             var targetLoadout = ResolveTargetLoadout(dbLoadouts, loadoutIdx);
             if (targetLoadout == null)
             {
-                Serilog.Log.Warning(
-                    "PAINT_DEBUG PurchaseAndUpdateVisualLoadout(v2): unable to resolve target loadout for char={CharGuid}, loadoutIdx={LoadoutIdx}",
+                Serilog.Log.Debug(
+                    "PurchaseAndUpdateVisualLoadout(v2): unable to resolve target loadout for char={CharGuid}, loadoutIdx={LoadoutIdx}",
                     characterGuid, loadoutIdx);
                 return ReturnError(Error.Codes.ERR_UNKNOWN, "Loadout not found", 400);
             }
@@ -207,8 +216,8 @@ namespace RIN.WebAPI.Controllers
                 await Db.UpdateBattleframeVisuals(targetBattleframeId.Value, battleframeVisuals);
             }
 
-            Serilog.Log.Information(
-                "PAINT_DEBUG PurchaseAndUpdateVisualLoadout(v2): updated char={CharGuid}, loadoutIdx={LoadoutIdx}, resolvedLoadout={LoadoutId}, chassis={ChassisSdbId}, battleframeId={BattleframeId}, warpaintId={WarpaintId}",
+            Serilog.Log.Debug(
+                "PurchaseAndUpdateVisualLoadout(v2): updated char={CharGuid}, loadoutIdx={LoadoutIdx}, resolvedLoadout={LoadoutId}, chassis={ChassisSdbId}, battleframeId={BattleframeId}, warpaintId={WarpaintId}",
                 characterGuid,
                 loadoutIdx,
                 targetLoadout.LoadoutId,
@@ -252,10 +261,16 @@ namespace RIN.WebAPI.Controllers
                 visuals.warpaint_id = updates.warpaint_id;
             }
 
-            visuals.warpaint_patterns = updates.warpaintpatterns
+            var warpaintPatterns = updates.warpaintpatterns
                 .Where(pattern => pattern != null && pattern.sdb_id > 0)
-                .Select(pattern => pattern.sdb_id)
+                .Select(pattern => new WebWarpaintPattern
+                {
+                    sdb_id = pattern.sdb_id,
+                    usage = pattern.usage,
+                    transform = pattern.transform ?? System.Array.Empty<float>()
+                })
                 .ToList();
+            visuals.SetWarpaintPatterns(warpaintPatterns);
 
             visuals.visual_overrides = updates.visual_overrides
                 .Where(visualOverride => visualOverride != null && visualOverride.visual_id > 0)
@@ -337,6 +352,46 @@ namespace RIN.WebAPI.Controllers
             price = 0;
             var catalog = LoadProductCatalog();
             return catalog.TryGetValue((unlockType, unlockId), out price);
+        }
+
+        private static string SummarizePatternPayload(IEnumerable<WarpaintPattern>? patterns)
+        {
+            var payload = (patterns ?? Enumerable.Empty<WarpaintPattern>())
+                .Where(pattern => pattern != null)
+                .Select(pattern => new
+                {
+                    pattern.sdb_id,
+                    pattern.usage,
+                    transform = SummarizeTransform(pattern.transform, 8)
+                })
+                .ToList();
+
+            return JsonSerializer.Serialize(payload);
+        }
+
+        private static string SummarizeDecalPayload(IEnumerable<Decal>? decals)
+        {
+            var payload = (decals ?? Enumerable.Empty<Decal>())
+                .Where(decal => decal != null)
+                .Select(decal => new
+                {
+                    decal.sdb_id,
+                    decal.color,
+                    transform = SummarizeTransform(decal.transform, 12)
+                })
+                .ToList();
+
+            return JsonSerializer.Serialize(payload);
+        }
+
+        private static object SummarizeTransform(float[]? transform, int maxEntries)
+        {
+            var safe = transform ?? Array.Empty<float>();
+            return new
+            {
+                len = safe.Length,
+                values = safe.Take(maxEntries).ToArray()
+            };
         }
 
         private static Dictionary<(string unlockType, int unlockId), int> LoadProductCatalog()
@@ -488,7 +543,7 @@ namespace RIN.WebAPI.Controllers
                     warpaint = new List<uint>()
                         {4216738474, 0, 4216717312, 418250752, 1525350400, 4162844703, 4162844703},
                     decalgradients    = new List<int>(),
-                    warpaint_patterns = new List<int>(),
+                    warpaint_patterns = new List<WebWarpaintPattern>(),
                     visual_overrides  = new List<int>()
                 },
                 gear = new List<GearSlot>()

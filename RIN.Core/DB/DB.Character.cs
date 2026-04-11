@@ -9,6 +9,7 @@ using RIN.Core.Common;
 using RIN.Core.Models;
 using RIN.Core.Models.ClientApi;
 using RIN.Core.Utils;
+using System.Linq;
 
 namespace RIN.Core.DB
 {
@@ -144,8 +145,8 @@ namespace RIN.Core.DB
                             }
                             catch (Exception ex)
                             {
-                                Serilog.Log.Warning(ex,
-                                    "PAINT_DEBUG CharactersList: failed chassis lookup for char={CharGuid}, frame={FrameSdbId}; falling back to current row blob",
+                                    Serilog.Log.Debug(ex,
+                                        "CharactersList: failed chassis lookup for char={CharGuid}, frame={FrameSdbId}; falling back to current row blob",
                                     (long)result.character_guid,
                                     character.frame_sdb_id);
                             }
@@ -171,14 +172,36 @@ namespace RIN.Core.DB
                         await ApplyPaletteColorsToBattleframeVisuals(battleframeVisuals);
                         battleframeVisuals.ApplyToCharacterVisuals(character.visuals);
 
-                        Serilog.Log.Information(
-                            "PAINT_DEBUG CharactersList: char={CharGuid}, frame={FrameSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                        var charactersListPatternPayload = (character.visuals.warpaint_patterns ?? new List<WebWarpaintPattern>())
+                            .Select(pattern => new
+                            {
+                                pattern.sdb_id,
+                                pattern.usage,
+                                transformLen = pattern.transform?.Length ?? 0,
+                                transform = (pattern.transform ?? Array.Empty<float>()).Take(8).ToArray()
+                            })
+                            .ToList();
+
+                        var charactersListDecalPayload = (character.visuals.decals ?? new List<WebDecal>())
+                            .Select(decal => new
+                            {
+                                decal.sdb_id,
+                                decal.color,
+                                transformLen = decal.transform?.Length ?? 0,
+                                transform = (decal.transform ?? Array.Empty<float>()).Take(12).ToArray()
+                            })
+                            .ToList();
+
+                        Serilog.Log.Debug(
+                            "CharactersList: char={CharGuid}, frame={FrameSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}, patternPayload={PatternPayload}, decalPayload={DecalPayload}",
                             (long)result.character_guid,
                             character.frame_sdb_id,
                             battleframeVisuals.warpaint_id,
-                            battleframeVisuals.warpaint_patterns?.Count ?? 0,
-                            battleframeVisuals.decals?.Count ?? 0,
-                            battleframeVisuals.visual_overrides?.Count ?? 0);
+                            character.visuals.warpaint_patterns?.Count ?? 0,
+                            character.visuals.decals?.Count ?? 0,
+                            battleframeVisuals.visual_overrides?.Count ?? 0,
+                            JsonSerializer.Serialize(charactersListPatternPayload),
+                            JsonSerializer.Serialize(charactersListDecalPayload));
                     }
 
                     chars.Add(character);
@@ -666,17 +689,44 @@ namespace RIN.Core.DB
                 var paintUpdate = TryBuildBattleframeVisualsFromLoadoutJson(visualsJson);
                 if (paintUpdate == null)
                 {
-                    Serilog.Log.Information(
-                        "PAINT_DEBUG DB.SaveCharacterLoadout: no paint data in visualsJson (null paintUpdate) for char={CharGuid}, loadout={LoadoutId}",
+                    Serilog.Log.Debug(
+                        "DB.SaveCharacterLoadout: no paint data in visualsJson (null paintUpdate) for char={CharGuid}, loadout={LoadoutId}",
                         characterGuid, loadoutId);
                 }
 
                 if (paintUpdate != null)
                 {
-                    Serilog.Log.Information(
-                        "PAINT_DEBUG DB.SaveCharacterLoadout: paintUpdate parsed — hasPalette={HasPalette}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}",
+                    Serilog.Log.Debug(
+                        "DB.SaveCharacterLoadout: paintUpdate parsed; hasPalette={HasPalette}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}",
                         paintUpdate.HasPalette, paintUpdate.WarpaintId,
                         paintUpdate.WarpaintPatterns?.Count ?? 0, paintUpdate.Decals?.Count ?? 0);
+
+                    var patternPayload = (paintUpdate.WarpaintPatterns ?? new List<WebWarpaintPattern>())
+                        .Select(pattern => new
+                        {
+                            pattern.sdb_id,
+                            pattern.usage,
+                            transformLen = pattern.transform?.Length ?? 0,
+                            transform = (pattern.transform ?? Array.Empty<float>()).Take(8).ToArray()
+                        })
+                        .ToList();
+
+                    var decalPayload = (paintUpdate.Decals ?? new List<WebDecal>())
+                        .Select(decal => new
+                        {
+                            decal.sdb_id,
+                            decal.color,
+                            transformLen = decal.transform?.Length ?? 0,
+                            transform = (decal.transform ?? Array.Empty<float>()).Take(12).ToArray()
+                        })
+                        .ToList();
+
+                    Serilog.Log.Debug(
+                        "DB.SaveCharacterLoadout: parsed transform payload; char={CharGuid}, loadout={LoadoutId}, patternPayload={PatternPayload}, decalPayload={DecalPayload}",
+                        characterGuid,
+                        loadoutId,
+                        JsonSerializer.Serialize(patternPayload),
+                        JsonSerializer.Serialize(decalPayload));
 
                                         var battleframeId = await conn.QueryFirstOrDefaultAsync<long?>(
                                                 @"SELECT bf.id
@@ -688,8 +738,8 @@ namespace RIN.Core.DB
                                                 new { characterGuid, chassisSdbId },
                                                 tx);
 
-                    Serilog.Log.Information(
-                        "PAINT_DEBUG DB.SaveCharacterLoadout: current_battleframe lookup → battleframeId={BattleframeId} (char={CharGuid}, chassis={ChassisSdbId})",
+                    Serilog.Log.Debug(
+                        "DB.SaveCharacterLoadout: current_battleframe lookup; battleframeId={BattleframeId} (char={CharGuid}, chassis={ChassisSdbId})",
                         battleframeId, characterGuid, chassisSdbId);
 
                                         if (!battleframeId.HasValue || battleframeId.Value <= 0)
@@ -703,8 +753,8 @@ namespace RIN.Core.DB
                                                         new { characterGuid, chassisSdbId },
                                                         tx);
 
-                        Serilog.Log.Information(
-                            "PAINT_DEBUG DB.SaveCharacterLoadout: fallback Battleframes lookup → battleframeId={BattleframeId}",
+                        Serilog.Log.Debug(
+                            "DB.SaveCharacterLoadout: fallback Battleframes lookup; battleframeId={BattleframeId}",
                             battleframeId);
                                         }
 
@@ -717,8 +767,8 @@ namespace RIN.Core.DB
                         await ApplyPaletteColorsToBattleframeVisuals(paintVisuals, conn, tx);
                     }
 
-                    paintVisuals.warpaint_patterns = paintUpdate.WarpaintPatterns;
-                    paintVisuals.decals = paintUpdate.Decals;
+                    paintVisuals.SetWarpaintPatterns(paintUpdate.WarpaintPatterns ?? new List<WebWarpaintPattern>());
+                    paintVisuals.decals = paintUpdate.Decals ?? new List<WebDecal>();
 
                     var visualsBlob = Utils.MiscUtils.ToProtoBuffByteArray(paintVisuals);
 
@@ -758,8 +808,8 @@ namespace RIN.Core.DB
                                                         new { characterGuid, chassisSdbId, visualsBlob },
                                                         tx)).ToList();
 
-                        Serilog.Log.Information(
-                            "PAINT_DEBUG DB.SaveCharacterLoadout: UPDATE Battleframes touched {RowCount} rows, ids={Ids}, visualsBlobBytes={BlobBytes}",
+                        Serilog.Log.Debug(
+                            "DB.SaveCharacterLoadout: UPDATE Battleframes touched {RowCount} rows, ids={Ids}, visualsBlobBytes={BlobBytes}",
                             updatedBattleframeIds.Count,
                             System.Text.Json.JsonSerializer.Serialize(updatedBattleframeIds),
                             visualsBlob?.Length ?? 0);
@@ -933,7 +983,12 @@ namespace RIN.Core.DB
                 result.WarpaintPatterns = visuals
                     .Where(v => v.VisualType == 10 && v.ItemSdbId > 0)
                     .OrderBy(v => v.Data1)
-                    .Select(v => (int)v.ItemSdbId)
+                    .Select(v => new WebWarpaintPattern
+                    {
+                        sdb_id = (int)v.ItemSdbId,
+                        usage = (int)v.Data1,
+                        transform = v.Transform ?? Array.Empty<float>()
+                    })
                     .ToList();
 
                 result.Decals = visuals
@@ -959,7 +1014,7 @@ namespace RIN.Core.DB
         {
             public bool HasPalette { get; set; }
             public int WarpaintId { get; set; }
-            public List<int> WarpaintPatterns { get; set; } = new();
+            public List<WebWarpaintPattern> WarpaintPatterns { get; set; } = new();
             public List<WebDecal> Decals { get; set; } = new();
         }
 
