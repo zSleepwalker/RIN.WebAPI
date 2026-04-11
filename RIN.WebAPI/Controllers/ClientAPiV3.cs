@@ -118,28 +118,95 @@ namespace RIN.WebAPI.Controllers
 
         [HttpGet("characters/{characterGuid}/garage_slots")]
         [R5SigAuthRequired]
-        public List<GarageSlot> GarageSlots(long characterGuid)
+        public async Task<List<GarageSlot>> GarageSlots(long characterGuid)
         {
-            var slots = new List<GarageSlot>()
-            {
-                new GarageSlot()
+            var loadouts = (await Db.GetCharacterLoadouts(characterGuid)).ToList();
+            var visualsByChassis = await Db.GetBattleframeVisualsByChassis(characterGuid);
+
+            var slots = loadouts
+                .OrderBy(l => l.LoadoutId)
+                .Select(loadout =>
                 {
-                    id                = 0,
-                    name              = "Crafting Station",
-                    character_guid    = characterGuid,
-                    garage_type       =  "crafting_station",
-                    item_guid         = 0,
-                    equipped_slots    = [],
-                    limits            = new SlotLimits() { abilities = 4 },
-                    decals            = new List<Decal>(),
-                    visual_loadout_id = 0,
-                    warpaint_id       = 0,
-                    warpaintpatterns  = new List<WarpaintPattern>(),
-                    visual_overrides  = new List<VisualOverride>(),
-                    unlocked          = true,
-                    expires_in_secs   = 0
-                }
-            };
+                    var hasVisuals = visualsByChassis.TryGetValue(loadout.ChassisSdbId, out var chassisVisuals);
+                    var battleframeGuid = hasVisuals ? chassisVisuals.BattleframeGuid : 0;
+                    var battleframeVisuals = hasVisuals
+                        ? chassisVisuals.Visuals
+                        : PlayerBattleframeVisuals.CreateDefault();
+                    var decals = battleframeVisuals.decals ?? new List<WebDecal>();
+                    var warpaintPatterns = battleframeVisuals.warpaint_patterns ?? new List<int>();
+                    var visualOverrides = battleframeVisuals.visual_overrides ?? new List<int>();
+
+                    Serilog.Log.Information(
+                        "PAINT_DEBUG GarageSlots: char={CharGuid}, loadout={LoadoutId}, battleframeGuid={BfGuid}, chassis={ChassisSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                        characterGuid,
+                        loadout.LoadoutId,
+                        battleframeGuid,
+                        loadout.ChassisSdbId,
+                        battleframeVisuals.warpaint_id,
+                        battleframeVisuals.warpaint_patterns?.Count ?? 0,
+                        battleframeVisuals.decals?.Count ?? 0,
+                        battleframeVisuals.visual_overrides?.Count ?? 0);
+
+                    return new GarageSlot
+                    {
+                        id = loadout.LoadoutId,
+                        name = $"Loadout {loadout.LoadoutId}",
+                        character_guid = characterGuid,
+                        garage_type = "battleframe",
+                        item_guid = battleframeGuid,
+                        equipped_slots = [],
+                        limits = new SlotLimits { abilities = 4 },
+                        decals = decals
+                            .Where(item => item != null && item.sdb_id > 0)
+                            .Select(item => new Decal
+                            {
+                                sdb_id = item.sdb_id,
+                                color = unchecked((uint)item.color),
+                                transform = item.transform ?? Array.Empty<float>(),
+                            })
+                            .ToList(),
+                        visual_loadout_id = loadout.ChassisSdbId,
+                        warpaint_id = battleframeVisuals.warpaint_id,
+                        warpaintpatterns = warpaintPatterns
+                            .Where(item => item > 0)
+                            .Select(item => new WarpaintPattern
+                            {
+                                sdb_id = item,
+                                usage = 0,
+                                transform = Array.Empty<float>(),
+                            })
+                            .ToList(),
+                        visual_overrides = visualOverrides
+                            .Where(item => item > 0)
+                            .Select(item => new VisualOverride
+                            {
+                                slot_type_id = 0,
+                                visual_id = item,
+                            })
+                            .ToList(),
+                        unlocked = true,
+                        expires_in_secs = 0,
+                    };
+                })
+                .ToList();
+
+            slots.Add(new GarageSlot()
+            {
+                id                = 0,
+                name              = "Crafting Station",
+                character_guid    = characterGuid,
+                garage_type       =  "crafting_station",
+                item_guid         = 0,
+                equipped_slots    = [],
+                limits            = new SlotLimits() { abilities = 4 },
+                decals            = new List<Decal>(),
+                visual_loadout_id = 0,
+                warpaint_id       = 0,
+                warpaintpatterns  = new List<WarpaintPattern>(),
+                visual_overrides  = new List<VisualOverride>(),
+                unlocked          = true,
+                expires_in_secs   = 0
+            });
 
             return slots;
         }

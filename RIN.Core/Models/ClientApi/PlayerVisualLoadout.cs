@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using RIN.Core.DB;
+using RIN.Core.Common;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,6 +25,11 @@ namespace RIN.Core.Models
         public int facial_hair_color_id { get; set; }
         public List<RemoteItem> head_accessories { get; set; } = new ();
         public List<RemoteItem> ornaments { get; set; } = new ();
+        public List<Decal> decals { get; set; } = new ();
+        public int warpaint_id { get; set; }
+        public List<SdbItem> warpaint { get; set; } = new ();
+        public List<WarpaintPattern> warpaintpatterns { get; set; } = new ();
+        public List<VisualOverride> visual_overrides { get; set; } = new ();
 
         // Did you know that hair is a head accessory
         [JsonIgnore] public int hair_id        => head_accessories.Count >= 1 ? head_accessories[0].remote_id : 0;
@@ -33,5 +39,10 @@ namespace RIN.Core.Models
     public class RemoteItem
     {
         public int remote_id { get; set; }
+    }
+
+    public class SdbItem
+    {
+        public int sdb_id { get; set; }
     }
 }

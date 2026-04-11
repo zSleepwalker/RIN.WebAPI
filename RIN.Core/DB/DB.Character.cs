@@ -55,8 +55,9 @@ namespace RIN.Core.DB
 		                        c.title_id,
 		                        c.time_played_secs,
 		                        c.needs_name_change,
-		                        COALESCE((SELECT MAX(level) FROM webapi.""Battleframes"" WHERE character_guid = c.character_guid), 1) AS max_frame_level,
-		                        Battleframes.battleframe_sdb_id AS frame_sdb_id,
+                                COALESCE((SELECT MAX(level) FROM webapi.""Battleframes"" WHERE character_guid = c.character_guid), 1) AS max_frame_level,
+                                Battleframes.battleframe_sdb_id AS frame_sdb_id,
+                                Battleframes.visuals AS battleframe_visuals,
 		                        COALESCE(Battleframes.level, 1) AS current_level,
 		                        c.gender,
 		                        c.elite_rank,
@@ -130,8 +131,24 @@ namespace RIN.Core.DB
                         character.visuals = new CharacterBattleframeCombinedVisuals();
                         charaterVisuals.ApplyToCharacterVisuals(character.visuals);
 
-                        var defaultBattleframeVisuals = PlayerBattleframeVisuals.CreateDefault();
-                        defaultBattleframeVisuals.ApplyToCharacterVisuals(character.visuals);
+                        PlayerBattleframeVisuals battleframeVisuals = PlayerBattleframeVisuals.CreateDefault();
+                        if (result.battleframe_visuals is byte[] battleframeVisualBlob && battleframeVisualBlob.Length > 0)
+                        {
+                            try
+                            {
+                                var parsed = Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(battleframeVisualBlob.AsSpan());
+                                if (parsed != null)
+                                {
+                                    battleframeVisuals = parsed;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Serilog.Log.Warning(ex, "Failed to deserialize battleframe visuals in GetCharactersForAccount for {characterGuid}; using defaults", (long)result.character_guid);
+                            }
+                        }
+
+                        battleframeVisuals.ApplyToCharacterVisuals(character.visuals);
                     }
 
                     chars.Add(character);
@@ -617,6 +634,168 @@ namespace RIN.Core.DB
 
                 await conn.ExecuteAsync(UPSERT_LOADOUT_SQL, new { characterGuid, loadoutId, chassisSdbId, visualsJson, slottedItemsJson }, tx);
 
+                var paintUpdate = TryBuildBattleframeVisualsFromLoadoutJson(visualsJson);
+                if (paintUpdate == null)
+                {
+                    Serilog.Log.Information(
+                        "PAINT_DEBUG DB.SaveCharacterLoadout: no paint data in visualsJson (null paintUpdate) for char={CharGuid}, loadout={LoadoutId}",
+                        characterGuid, loadoutId);
+                }
+
+                if (paintUpdate != null)
+                {
+                    Serilog.Log.Information(
+                        "PAINT_DEBUG DB.SaveCharacterLoadout: paintUpdate parsed — hasPalette={HasPalette}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}",
+                        paintUpdate.HasPalette, paintUpdate.WarpaintId,
+                        paintUpdate.WarpaintPatterns?.Count ?? 0, paintUpdate.Decals?.Count ?? 0);
+
+                                        var battleframeId = await conn.QueryFirstOrDefaultAsync<long?>(
+                                                @"SELECT bf.id
+                                                    FROM webapi.""Characters"" c
+                                                    JOIN webapi.""Battleframes"" bf ON bf.id = c.current_battleframe_guid
+                                                    WHERE c.character_guid = @characterGuid
+                                                        AND bf.battleframe_sdb_id = @chassisSdbId
+                                                    LIMIT 1;",
+                                                new { characterGuid, chassisSdbId },
+                                                tx);
+
+                    Serilog.Log.Information(
+                        "PAINT_DEBUG DB.SaveCharacterLoadout: current_battleframe lookup → battleframeId={BattleframeId} (char={CharGuid}, chassis={ChassisSdbId})",
+                        battleframeId, characterGuid, chassisSdbId);
+
+                                        if (!battleframeId.HasValue || battleframeId.Value <= 0)
+                                        {
+                                                battleframeId = await conn.QueryFirstOrDefaultAsync<long?>(
+                                                        @"SELECT id
+                                                            FROM webapi.""Battleframes""
+                                                            WHERE character_guid = @characterGuid AND battleframe_sdb_id = @chassisSdbId
+                                                            ORDER BY id
+                                                            LIMIT 1;",
+                                                        new { characterGuid, chassisSdbId },
+                                                        tx);
+
+                        Serilog.Log.Information(
+                            "PAINT_DEBUG DB.SaveCharacterLoadout: fallback Battleframes lookup → battleframeId={BattleframeId}",
+                            battleframeId);
+                                        }
+
+                    var paintVisuals = PlayerBattleframeVisuals.CreateDefault();
+                    if (battleframeId.HasValue && battleframeId.Value > 0)
+                    {
+                        var existingVisualsBlob = await conn.QueryFirstOrDefaultAsync<byte[]>(
+                            @"SELECT visuals
+                              FROM webapi.""Battleframes""
+                              WHERE id = @battleframeId;",
+                            new { battleframeId },
+                            tx);
+
+                        if (existingVisualsBlob != null && existingVisualsBlob.Length > 0)
+                        {
+                            try
+                            {
+                                paintVisuals = Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(existingVisualsBlob.AsSpan())
+                                    ?? PlayerBattleframeVisuals.CreateDefault();
+                            }
+                            catch
+                            {
+                                paintVisuals = PlayerBattleframeVisuals.CreateDefault();
+                            }
+                        }
+                    }
+
+                    if (paintUpdate.HasPalette)
+                    {
+                        paintVisuals.warpaint_id = paintUpdate.WarpaintId;
+
+                        var colors = await conn.QueryFirstOrDefaultAsync<WarpaintColorsRow?>(
+                            @"SELECT
+                                  color1_highlight AS Color1Highlight,
+                                  color1_shadow AS Color1Shadow,
+                                  color2_highlight AS Color2Highlight,
+                                  color2_shadow AS Color2Shadow,
+                                  color3_highlight AS Color3Highlight,
+                                  color3_shadow AS Color3Shadow,
+                                  color4_highlight AS Color4Highlight
+                              FROM sdb.""dbvisualrecords::WarpaintPalette""
+                              WHERE id = @paletteId;",
+                            new { paletteId = paintUpdate.WarpaintId },
+                            tx);
+
+                        if (colors != null && paintUpdate.WarpaintId > 0)
+                        {
+                            paintVisuals.warpaint = colors.ToColorList();
+                        }
+                    }
+
+                    paintVisuals.warpaint_patterns = paintUpdate.WarpaintPatterns;
+                    paintVisuals.decals = paintUpdate.Decals;
+
+                    var visualsBlob = Utils.MiscUtils.ToProtoBuffByteArray(paintVisuals);
+
+                    if (!battleframeId.HasValue || battleframeId.Value <= 0)
+                    {
+                        battleframeId = await conn.QueryFirstOrDefaultAsync<long?>(
+                            @"INSERT INTO webapi.""Battleframes"" (
+                                  character_guid,
+                                  battleframe_sdb_id,
+                                  visuals,
+                                  hidden,
+                                  level,
+                                  xp,
+                                  id)
+                              VALUES (
+                                  @characterGuid,
+                                  @chassisSdbId,
+                                  @visualsBlob,
+                                  false,
+                                  1,
+                                  0,
+                                  webapi.create_entity_guid(253))
+                              RETURNING id;",
+                            new { characterGuid, chassisSdbId, visualsBlob },
+                            tx);
+                    }
+                    else
+                    {
+                                                // Keep all rows for this character/chassis in sync so relog/current-frame lookup
+                                                // cannot land on a stale duplicate row.
+                                                var updatedBattleframeIds = (await conn.QueryAsync<long>(
+                                                        @"UPDATE webapi.""Battleframes""
+                                                            SET visuals = @visualsBlob
+                                                            WHERE character_guid = @characterGuid
+                                                                AND battleframe_sdb_id = @chassisSdbId
+                                                            RETURNING id;",
+                                                        new { characterGuid, chassisSdbId, visualsBlob },
+                                                        tx)).ToList();
+
+                        Serilog.Log.Information(
+                            "PAINT_DEBUG DB.SaveCharacterLoadout: UPDATE Battleframes touched {RowCount} rows, ids={Ids}, visualsBlobBytes={BlobBytes}",
+                            updatedBattleframeIds.Count,
+                            System.Text.Json.JsonSerializer.Serialize(updatedBattleframeIds),
+                            visualsBlob?.Length ?? 0);
+
+                                                if (updatedBattleframeIds.Count > 0)
+                                                {
+                                                        battleframeId = updatedBattleframeIds[0];
+                                                }
+                    }
+
+                    var currentBattleframeId = await conn.QueryFirstOrDefaultAsync<long?>(
+                        @"SELECT current_battleframe_guid
+                          FROM webapi.""Characters""
+                          WHERE character_guid = @characterGuid;",
+                        new { characterGuid },
+                        tx);
+
+                    if (currentBattleframeId.HasValue && battleframeId.HasValue && currentBattleframeId.Value == battleframeId.Value)
+                    {
+                        await conn.ExecuteAsync(
+                            @"SELECT pg_notify('events', 'CharacterVisualsUpdated->' || json_build_object('character_guid', @characterGuid)::text);",
+                            new { characterGuid },
+                            tx);
+                    }
+                }
+
                 var existingSlots = (await conn.QueryAsync<(int slot_type, long item_guid, int item_sdb_id)>(
                     @"SELECT slot_type, item_guid, item_sdb_id
                       FROM webapi.""CharacterLoadoutItems""
@@ -702,6 +881,97 @@ namespace RIN.Core.DB
                 await NotifyInventoryUpdate(characterGuid);
                 return true;
             });
+        }
+
+        private static LoadoutPaintUpdate? TryBuildBattleframeVisualsFromLoadoutJson(string visualsJson)
+        {
+            if (string.IsNullOrWhiteSpace(visualsJson))
+            {
+                return null;
+            }
+
+            LoadoutVisualDto[]? visuals;
+            try
+            {
+                visuals = JsonSerializer.Deserialize<LoadoutVisualDto[]>(visualsJson);
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (visuals == null || visuals.Length == 0 || !visuals.Any(v => v.VisualType is 9 or 10 or 11))
+            {
+                return null;
+            }
+
+            var result = new LoadoutPaintUpdate();
+
+            var palette = visuals.LastOrDefault(v => v.VisualType == 9 && v.ItemSdbId > 0);
+            if (palette?.ItemSdbId > 0)
+            {
+                result.HasPalette = true;
+                result.WarpaintId = (int)palette.ItemSdbId;
+            }
+
+            result.WarpaintPatterns = visuals
+                .Where(v => v.VisualType == 10 && v.ItemSdbId > 0)
+                .Select(v => (int)v.ItemSdbId)
+                .ToList();
+
+            result.Decals = visuals
+                .Where(v => v.VisualType == 11 && v.ItemSdbId > 0)
+                .Select(v => new WebDecal
+                {
+                    sdb_id = (int)v.ItemSdbId,
+                    color = unchecked((int)v.Data2),
+                    transform = v.Transform ?? Array.Empty<float>()
+                })
+                .ToList();
+
+            return result;
+        }
+
+        private sealed class LoadoutPaintUpdate
+        {
+            public bool HasPalette { get; set; }
+            public int WarpaintId { get; set; }
+            public List<int> WarpaintPatterns { get; set; } = new();
+            public List<WebDecal> Decals { get; set; } = new();
+        }
+
+        private sealed class LoadoutVisualDto
+        {
+            public uint ItemSdbId { get; set; }
+            public byte VisualType { get; set; }
+            public uint Data1 { get; set; }
+            public uint Data2 { get; set; }
+            public float[]? Transform { get; set; }
+        }
+
+        private sealed class WarpaintColorsRow
+        {
+            public long Color1Highlight { get; set; }
+            public long Color1Shadow { get; set; }
+            public long Color2Highlight { get; set; }
+            public long Color2Shadow { get; set; }
+            public long Color3Highlight { get; set; }
+            public long Color3Shadow { get; set; }
+            public long Color4Highlight { get; set; }
+
+            public List<uint> ToColorList()
+            {
+                return new List<uint>
+                {
+                    unchecked((uint)Color1Highlight),
+                    unchecked((uint)Color1Shadow),
+                    unchecked((uint)Color2Highlight),
+                    unchecked((uint)Color2Shadow),
+                    unchecked((uint)Color3Highlight),
+                    unchecked((uint)Color3Shadow),
+                    unchecked((uint)Color4Highlight),
+                };
+            }
         }
 
         public async Task<bool> ConsumeCharacterItem(long characterGuid, int sdbId, int quantity)

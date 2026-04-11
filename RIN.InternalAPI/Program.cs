@@ -15,6 +15,14 @@ namespace RIN.InternalAPI
             ProtoFileGen.CreateProtoFiles();
 #endif
 
+            // Clear previous session log so each start produces a clean, agent-readable file.
+            try
+            {
+                Directory.CreateDirectory("./logs");
+                if (File.Exists("./logs/RIN.InternalAPI.log")) File.Delete("./logs/RIN.InternalAPI.log");
+            }
+            catch { /* best-effort */ }
+
             var builder = WebApplication.CreateBuilder(args);
 
             // Client-side disconnects on duplex streams are expected during reconnects.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using System.Transactions;
 using Microsoft.AspNetCore.Mvc;
@@ -9,12 +10,17 @@ using RIN.Core.Common;
 using RIN.WebAPI.Utils;
 using RIN.Core.ClientApi;
 using RIN.Core;
+using RIN.Core.DB;
 using Microsoft.Net.Http.Headers;
 using RIN.Core.Models;
 using System.Data;
 using static RIN.Core.ClientApi.ClientEvent;
 using RIN.Core.DB.SDB;
 using RIN.Core.Utils;
+using RIN.Core.Models.ClientApi;
+using RIN.WebAPI.Models.StoreApi;
+using System.Linq;
+using System.Text.Json;
 
 namespace RIN.WebAPI.Controllers
 {
@@ -74,8 +80,67 @@ namespace RIN.WebAPI.Controllers
             var playerLoadout = await Db.GetBasicCharacterAndVisualData(characterGuid);
             if (playerLoadout.info == null) return NotFound();
 
-            var loadout       = playerLoadout.visuals.AsPlayerVisualLoadout(characterGuid);
-            var result        = new List<PlayerVisualLoadout> { loadout };
+            var dbLoadouts = (await Db.GetCharacterLoadouts(characterGuid)).OrderBy(l => l.LoadoutId).ToList();
+            var visualsByChassis = await Db.GetBattleframeVisualsByChassis(characterGuid);
+
+            if (dbLoadouts.Count == 0)
+            {
+                var fallback = playerLoadout.visuals.AsPlayerVisualLoadout(characterGuid);
+                fallback.id = 1;
+                return new List<PlayerVisualLoadout> { fallback };
+            }
+
+            var result = new List<PlayerVisualLoadout>(dbLoadouts.Count);
+            foreach (var dbLoadout in dbLoadouts)
+            {
+                var loadout = playerLoadout.visuals.AsPlayerVisualLoadout(characterGuid);
+                loadout.id = dbLoadout.LoadoutId;
+
+                var battleframeVisuals = visualsByChassis.TryGetValue(dbLoadout.ChassisSdbId, out var byChassis)
+                    ? byChassis.Visuals
+                    : PlayerBattleframeVisuals.CreateDefault();
+
+                loadout.decals = (battleframeVisuals.decals ?? new List<WebDecal>())
+                    .Where(decal => decal != null && decal.sdb_id > 0)
+                    .Select(decal => new Decal
+                    {
+                        sdb_id = decal.sdb_id,
+                        color = unchecked((uint)decal.color),
+                        transform = decal.transform ?? System.Array.Empty<float>()
+                    })
+                    .ToList();
+                loadout.warpaint_id = battleframeVisuals.warpaint_id;
+                loadout.warpaintpatterns = (battleframeVisuals.warpaint_patterns ?? new List<int>())
+                    .Where(id => id > 0)
+                    .Select(id => new WarpaintPattern
+                    {
+                        sdb_id = id,
+                        transform = System.Array.Empty<float>(),
+                        usage = 0
+                    })
+                    .ToList();
+                loadout.visual_overrides = (battleframeVisuals.visual_overrides ?? new List<int>())
+                    .Where(id => id > 0)
+                    .Select(id => new VisualOverride
+                    {
+                        slot_type_id = 0,
+                        visual_id = id
+                    })
+                    .ToList();
+
+                Serilog.Log.Information(
+                    "PAINT_DEBUG VisualLoadouts(v2): char={CharGuid}, loadout={LoadoutId}, chassis={ChassisSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                    characterGuid,
+                    dbLoadout.LoadoutId,
+                    dbLoadout.ChassisSdbId,
+                    loadout.warpaint_id,
+                    loadout.warpaintpatterns?.Count ?? 0,
+                    loadout.decals?.Count ?? 0,
+                    loadout.visual_overrides?.Count ?? 0);
+
+                result.Add(loadout);
+            }
+
             return result;
         }
 
@@ -83,6 +148,9 @@ namespace RIN.WebAPI.Controllers
         [R5SigAuthRequired]
         public async Task<object> PurchaseAndUpdateVisualLoadout(long characterGuid, int loadoutIdx, [FromBody] PlayerVisualLoadout updates)
         {
+            var loginResult = await Db.GetLoginData(GetUid());
+            if (loginResult == null) return Unauthorized();
+
             var playerLoadout   = await Db.GetBasicCharacterAndVisualData(characterGuid);
             if (playerLoadout.info == null) return NotFound();
 
@@ -99,13 +167,195 @@ namespace RIN.WebAPI.Controllers
                 .GroupBy(item => item.id)
                 .ToDictionary(group => group.Key, group => group.Last().usage);
 
+            var purchaseCost = await CalculateVisualPurchaseCost(characterGuid, updates);
+            if (purchaseCost > 0)
+            {
+                var spendResult = await Db.SpendRedBeans(loginResult.account_id, purchaseCost);
+                if (!spendResult.success)
+                {
+                    return ReturnError(Error.Codes.TMW_MSG, spendResult.error, 400);
+                }
+
+                await PersistVisualUnlocks(characterGuid, updates);
+            }
+
             playerLoadout.visuals = CharacterUtil.UpdateCharacterVisualsFromGarage(playerLoadout.visuals, updates, colors, ornamentUsageById);
 
-            await Db.UpdateCharacterVisuals(characterGuid, playerLoadout.visuals);
+            var dbLoadouts = (await Db.GetCharacterLoadouts(characterGuid)).ToList();
+            var targetLoadout = ResolveTargetLoadout(dbLoadouts, loadoutIdx);
+            if (targetLoadout == null)
+            {
+                Serilog.Log.Warning(
+                    "PAINT_DEBUG PurchaseAndUpdateVisualLoadout(v2): unable to resolve target loadout for char={CharGuid}, loadoutIdx={LoadoutIdx}",
+                    characterGuid, loadoutIdx);
+                return ReturnError(Error.Codes.ERR_UNKNOWN, "Loadout not found", 400);
+            }
 
-            Serilog.Log.Information("Updating player visuals for {characterGuid} on loadout Idx: {loadoutIdx}", characterGuid, loadoutIdx);
+            var visualsByChassis = await Db.GetBattleframeVisualsByChassis(characterGuid);
+            var battleframeVisuals = visualsByChassis.TryGetValue(targetLoadout.ChassisSdbId, out var existingByChassis)
+                ? existingByChassis.Visuals
+                : PlayerBattleframeVisuals.CreateDefault();
+            ApplyBattleframeVisualUpdates(battleframeVisuals, updates);
+
+            await Db.UpdateCharacterVisuals(characterGuid, playerLoadout.visuals);
+            var targetBattleframeId = visualsByChassis.TryGetValue(targetLoadout.ChassisSdbId, out var targetByChassis)
+                ? targetByChassis.BattleframeGuid
+                : await Db.EnsureBattleframeRecord(characterGuid, targetLoadout.ChassisSdbId);
+
+            if (targetBattleframeId.HasValue && targetBattleframeId.Value > 0)
+            {
+                await Db.UpdateBattleframeVisuals(targetBattleframeId.Value, battleframeVisuals);
+            }
+
+            Serilog.Log.Information(
+                "PAINT_DEBUG PurchaseAndUpdateVisualLoadout(v2): updated char={CharGuid}, loadoutIdx={LoadoutIdx}, resolvedLoadout={LoadoutId}, chassis={ChassisSdbId}, battleframeId={BattleframeId}, warpaintId={WarpaintId}",
+                characterGuid,
+                loadoutIdx,
+                targetLoadout.LoadoutId,
+                targetLoadout.ChassisSdbId,
+                targetBattleframeId,
+                battleframeVisuals.warpaint_id);
 
             return Content("{}", "application/json");
+        }
+
+        private static CharacterLoadout? ResolveTargetLoadout(IEnumerable<CharacterLoadout> loadouts, int loadoutIdx)
+        {
+            var list = loadouts?.ToList() ?? new List<CharacterLoadout>();
+            if (list.Count == 0)
+            {
+                return null;
+            }
+
+            // Some clients pass a 1-based loadout id, others pass a zero-based index.
+            return list.FirstOrDefault(l => l.LoadoutId == loadoutIdx)
+                ?? list.FirstOrDefault(l => l.LoadoutId == loadoutIdx + 1)
+                ?? (loadoutIdx >= 0 && loadoutIdx < list.Count
+                    ? list.OrderBy(l => l.LoadoutId).ElementAt(loadoutIdx)
+                    : null);
+        }
+
+        private static void ApplyBattleframeVisualUpdates(PlayerBattleframeVisuals visuals, PlayerVisualLoadout updates)
+        {
+            visuals.decals = updates.decals
+                .Where(decal => decal != null && decal.sdb_id > 0)
+                .Select(decal => new WebDecal
+                {
+                    sdb_id = decal.sdb_id,
+                    color = unchecked((int)decal.color),
+                    transform = decal.transform ?? System.Array.Empty<float>()
+                })
+                .ToList();
+
+            if (updates.warpaint_id > 0)
+            {
+                visuals.warpaint_id = updates.warpaint_id;
+            }
+
+            visuals.warpaint_patterns = updates.warpaintpatterns
+                .Where(pattern => pattern != null && pattern.sdb_id > 0)
+                .Select(pattern => pattern.sdb_id)
+                .ToList();
+
+            visuals.visual_overrides = updates.visual_overrides
+                .Where(visualOverride => visualOverride != null && visualOverride.visual_id > 0)
+                .Select(visualOverride => visualOverride.visual_id)
+                .ToList();
+        }
+
+        private async Task<int> CalculateVisualPurchaseCost(long characterGuid, PlayerVisualLoadout updates)
+        {
+            var ownedUnlocks = (await Db.GetCharacterInventory(characterGuid)).unlocks
+                .ToHashSet();
+
+            int totalCost = 0;
+            foreach (var request in EnumerateRequestedVisualUnlocks(updates))
+            {
+                if (ownedUnlocks.Contains((request.unlockType, request.unlockId, 0)))
+                {
+                    continue;
+                }
+
+                if (TryGetVisualProductPrice(request.unlockType, request.unlockId, out var price))
+                {
+                    totalCost += price;
+                }
+            }
+
+            return totalCost;
+        }
+
+        private async Task PersistVisualUnlocks(long characterGuid, PlayerVisualLoadout updates)
+        {
+            var ownedUnlocks = (await Db.GetCharacterInventory(characterGuid)).unlocks
+                .ToHashSet();
+
+            foreach (var request in EnumerateRequestedVisualUnlocks(updates))
+            {
+                if (ownedUnlocks.Contains((request.unlockType, request.unlockId, 0)))
+                {
+                    continue;
+                }
+
+                if (TryGetVisualProductPrice(request.unlockType, request.unlockId, out _))
+                {
+                    await Db.UpsertCharacterUnlock(characterGuid, request.unlockType, request.unlockId, 0);
+                }
+            }
+        }
+
+        private static IEnumerable<(string unlockType, int unlockId)> EnumerateRequestedVisualUnlocks(PlayerVisualLoadout updates)
+        {
+            foreach (var ornament in updates.ornaments.Where(item => item?.remote_id > 0))
+            {
+                yield return ("ornaments", ornament.remote_id);
+            }
+
+            foreach (var decal in updates.decals.Where(item => item != null && item.sdb_id > 0))
+            {
+                yield return ("decals", decal.sdb_id);
+            }
+
+            if (updates.warpaint_id > 0)
+            {
+                yield return ("warpaints", updates.warpaint_id);
+            }
+
+            foreach (var pattern in updates.warpaintpatterns.Where(item => item != null && item.sdb_id > 0))
+            {
+                yield return ("czi_patterns", pattern.sdb_id);
+            }
+
+            foreach (var visualOverride in updates.visual_overrides.Where(item => item != null && item.visual_id > 0))
+            {
+                yield return ("visual_overrides", visualOverride.visual_id);
+            }
+        }
+
+        private static bool TryGetVisualProductPrice(string unlockType, int unlockId, out int price)
+        {
+            price = 0;
+            var catalog = LoadProductCatalog();
+            return catalog.TryGetValue((unlockType, unlockId), out price);
+        }
+
+        private static Dictionary<(string unlockType, int unlockId), int> LoadProductCatalog()
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "StaticData", "products.json");
+            if (!System.IO.File.Exists(path))
+            {
+                return new Dictionary<(string unlockType, int unlockId), int>();
+            }
+
+            var json = System.IO.File.ReadAllText(path);
+            var data = JsonSerializer.Deserialize<ProductsJson>(json);
+            return data?.products?
+                .Where(product => product.active && product.approved)
+                .GroupBy(product => (product.sdb_type, (int)product.sdb_id))
+                .ToDictionary(
+                    group => group.Key,
+                    group => (int)(group.Last().bundles.FirstOrDefault()?.current_price?.amount ?? group.Last().lowest_price))
+                ?? new Dictionary<(string unlockType, int unlockId), int>();
         }
 
         // TOOD: Implement

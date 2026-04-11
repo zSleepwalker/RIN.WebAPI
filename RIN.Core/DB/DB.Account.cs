@@ -166,6 +166,38 @@ namespace RIN.Core.DB
             });
         }
 
+        public async Task<(bool success, string error)> SpendRedBeans(long accountId, int rbCost)
+        {
+            return await DBCall(async conn =>
+            {
+                using var transaction = conn.BeginTransaction();
+                try
+                {
+                    const string SELECT_SQL = @"SELECT rb_balance FROM webapi.""Accounts"" WHERE account_id = @accountId FOR UPDATE";
+                    var account = await conn.QueryFirstOrDefaultAsync<dynamic>(SELECT_SQL, new { accountId }, transaction);
+
+                    if (account == null) return (false, "Account not found");
+                    if (rbCost < 0) return (false, "Invalid Red Bean cost");
+                    if (account.rb_balance < rbCost) return (false, "Not enough Red Beans");
+
+                    const string UPDATE_SQL = @"UPDATE webapi.""Accounts""
+                                                SET rb_balance = rb_balance - @rbCost
+                                                WHERE account_id = @accountId";
+
+                    await conn.ExecuteAsync(UPDATE_SQL, new { accountId, rbCost }, transaction);
+                    transaction.Commit();
+
+                    return (true, string.Empty);
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    Serilog.Log.Error(ex, "Error spending Red Beans for account {accountId}", accountId);
+                    return (false, "An error occurred while processing the purchase");
+                }
+            });
+        }
+
         public async Task<bool> AddOrExtendVip(long accountId, int durationSecs)
         {
             const string UPSERT_SQL = @"

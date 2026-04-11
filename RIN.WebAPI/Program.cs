@@ -11,12 +11,21 @@ using Serilog.Events;
 using Serilog.Formatting.Compact;
 using Serilog.Templates;
 
+// Clear previous session log files so each start produces a clean, agent-readable file.
+try
+{
+    Directory.CreateDirectory("./logs");
+    if (File.Exists("./logs/RIN.WebAPI.log")) File.Delete("./logs/RIN.WebAPI.log");
+    if (File.Exists("./logs/RIN.WebAPI.json")) File.Delete("./logs/RIN.WebAPI.json");
+}
+catch { /* best-effort */ }
+
 var loggerExpression = new ExpressionTemplate("{@t:HH:mm:ss} [{@l:u4}] [{Substring(SourceContext, LastIndexOf(SourceContext, '.') + 1)}] {@m}\n{@x}");
 Log.Logger = new LoggerConfiguration()
             .Enrich.FromLogContext()
             .WriteTo.Console()
-            .WriteTo.File(loggerExpression, "./logs/log-.txt", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 5)
-            .WriteTo.File(new CompactJsonFormatter(), "./logs/log-.json", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 5)
+            .WriteTo.File(loggerExpression, "./logs/RIN.WebAPI.log", rollingInterval: RollingInterval.Infinite)
+            .WriteTo.File(new CompactJsonFormatter(), "./logs/RIN.WebAPI.json", rollingInterval: RollingInterval.Infinite)
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .CreateBootstrapLogger();
 
@@ -28,10 +37,8 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
        .ReadFrom.Configuration(ctx.Configuration)
        .ReadFrom.Services(services).Enrich.FromLogContext()
        .WriteTo.Console()
-       .WriteTo.File(loggerExpression, "./logs/log-.txt",
-            rollingInterval: RollingInterval.Day,
-            retainedFileCountLimit: 5)
-       .WriteTo.File(new CompactJsonFormatter(), "./logs/log-.json", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 5)
+       .WriteTo.File(loggerExpression, "./logs/RIN.WebAPI.log", rollingInterval: RollingInterval.Infinite)
+       .WriteTo.File(new CompactJsonFormatter(), "./logs/RIN.WebAPI.json", rollingInterval: RollingInterval.Infinite)
        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning);
 });
 

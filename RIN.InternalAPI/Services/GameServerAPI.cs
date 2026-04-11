@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using System.Net.Sockets;
+using System.Text.Json;
 using Grpc.Core;
 using Microsoft.AspNetCore.Connections;
 using RIN.Core.DB;
@@ -64,6 +65,8 @@ namespace RIN.InternalAPI.Services
                 dbLoadouts = (await DB.GetCharacterLoadouts(req.ID)).ToList();
             }
 
+            var battleframeVisualsByChassis = await DB.GetBattleframeVisualsByChassis(req.ID);
+
             var dbInventory = await DB.GetCharacterInventory(req.ID);
             var resp = new CharacterInventoryResponse();
 
@@ -87,11 +90,13 @@ namespace RIN.InternalAPI.Services
 
             foreach (var loadout in dbLoadouts)
             {
+                battleframeVisualsByChassis.TryGetValue(loadout.ChassisSdbId, out var battleframeVisualsEntry);
+
                 resp.Loadouts.Add(new CharacterLoadout
                 {
                     LoadoutId = loadout.LoadoutId,
                     ChassisSdbId = loadout.ChassisSdbId,
-                    Visuals = loadout.Visuals,
+                    Visuals = NormalizeLoadoutVisuals(loadout.Visuals, battleframeVisualsEntry.Visuals),
                     SlottedItems = loadout.SlottedItems,
                     Level = loadout.Level,
                     CurrentXp = loadout.CurrentXp,
@@ -113,6 +118,50 @@ namespace RIN.InternalAPI.Services
             }
 
             return resp;
+        }
+
+        private static string NormalizeLoadoutVisuals(string? rawVisualsJson, PlayerBattleframeVisuals? battleframeVisuals)
+        {
+            if (battleframeVisuals == null || battleframeVisuals.warpaint_id <= 0)
+            {
+                return string.IsNullOrWhiteSpace(rawVisualsJson) ? "[]" : rawVisualsJson;
+            }
+
+            List<PersistedLoadoutVisual>? visuals;
+            try
+            {
+                visuals = string.IsNullOrWhiteSpace(rawVisualsJson)
+                    ? new List<PersistedLoadoutVisual>()
+                    : JsonSerializer.Deserialize<List<PersistedLoadoutVisual>>(rawVisualsJson);
+            }
+            catch
+            {
+                return string.IsNullOrWhiteSpace(rawVisualsJson) ? "[]" : rawVisualsJson;
+            }
+
+            visuals ??= new List<PersistedLoadoutVisual>();
+            visuals.RemoveAll(visual => visual.VisualType == PersistedLoadoutVisual.PaletteVisualType);
+            visuals.Add(new PersistedLoadoutVisual
+            {
+                ItemSdbId = (uint)battleframeVisuals.warpaint_id,
+                VisualType = PersistedLoadoutVisual.PaletteVisualType,
+                Data1 = 0,
+                Data2 = 0,
+                Transform = Array.Empty<float>(),
+            });
+
+            return JsonSerializer.Serialize(visuals);
+        }
+
+        private sealed class PersistedLoadoutVisual
+        {
+            public const int PaletteVisualType = 9;
+
+            public uint ItemSdbId { get; set; }
+            public int VisualType { get; set; }
+            public uint Data1 { get; set; }
+            public uint Data2 { get; set; }
+            public float[] Transform { get; set; } = Array.Empty<float>();
         }
 
         public async ValueTask<AddCharacterItemResp> AddCharacterItem(AddCharacterItemReq req)
@@ -178,6 +227,9 @@ namespace RIN.InternalAPI.Services
                                     await DB.SaveLgvRaceFinish((long)race.CharacterGuid, (int)race.LeaderboardId, (long)race.TimeMs);
                                     break;
                                 case SaveCharacterLoadout loadout:
+                                    Serilog.Log.Information(
+                                        "PAINT_DEBUG InternalAPI SaveCharacterLoadout: charGuid={CharGuid}, loadoutId={LoadoutId}, chassisSdbId={ChassisSdbId}, visualsJson={VisualsJson}",
+                                        loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson);
                                     await DB.SaveCharacterLoadout((long)loadout.CharacterGuid, loadout.LoadoutId, loadout.ChassisSdbId, loadout.VisualsJson, loadout.SlottedItemsJson);
                                     break;
                                 case SaveCharacterUnlock unlock:

@@ -86,14 +86,44 @@ namespace RIN.Core.DB
 
         public async Task<bool> UpdateBattleframeVisuals(long battleframeId, PlayerBattleframeVisuals visuals)
         {
-            const string UPDATE_SQL = @"UPDATE webapi.""Battleframes""
+            return await DBCall(async conn =>
+            {
+                await using var tx = await conn.BeginTransactionAsync();
+
+                const string UPDATE_SQL = @"UPDATE webapi.""Battleframes""
 	                            SET visuals = @visualsBlob
 	                            WHERE id = @battleframeId;";
 
-            var visualsBlob = Utils.MiscUtils.ToProtoBuffByteArray(visuals);
-            var result = await DBCall(conn => conn.ExecuteAsync(UPDATE_SQL, new { battleframeId, visualsBlob }));
+                var visualsBlob = Utils.MiscUtils.ToProtoBuffByteArray(visuals);
+                var result = await conn.ExecuteAsync(UPDATE_SQL, new { battleframeId, visualsBlob }, tx);
 
-            return result > 0;
+                var characterGuid = await conn.QueryFirstOrDefaultAsync<long?>(
+                    @"SELECT character_guid
+                      FROM webapi.""Battleframes""
+                      WHERE id = @battleframeId;",
+                    new { battleframeId },
+                    tx);
+
+                var currentBattleframeId = characterGuid.HasValue
+                    ? await conn.QueryFirstOrDefaultAsync<long?>(
+                        @"SELECT current_battleframe_guid
+                          FROM webapi.""Characters""
+                          WHERE character_guid = @characterGuid;",
+                        new { characterGuid },
+                        tx)
+                    : null;
+
+                if (characterGuid.HasValue && currentBattleframeId.HasValue && currentBattleframeId.Value == battleframeId)
+                {
+                    await conn.ExecuteAsync(
+                        @"SELECT pg_notify('events', 'CharacterVisualsUpdated->' || json_build_object('character_guid', @characterGuid)::text);",
+                        new { characterGuid },
+                        tx);
+                }
+
+                await tx.CommitAsync();
+                return result > 0;
+            });
         }
 
         public async Task<PlayerBattleframeVisuals?> GetCurrentBattleframeVisuals(long characterId)
@@ -104,20 +134,118 @@ namespace RIN.Core.DB
                                         WHERE c.character_guid = @characterId";
 
             var visualsBlob = await DBCall(conn => conn.QueryFirstOrDefaultAsync<byte[]>(SELECT_SQL, new { characterId }));
+
+            Serilog.Log.Information(
+                "PAINT_DEBUG GetCurrentBattleframeVisuals: char={CharId}, blobBytes={BlobBytes}",
+                characterId, visualsBlob?.Length ?? 0);
+
             if (visualsBlob == null || visualsBlob.Length == 0)
             {
+                Serilog.Log.Information("PAINT_DEBUG GetCurrentBattleframeVisuals: no visuals blob found for char={CharId}", characterId);
                 return null;
             }
 
             try
             {
-                return Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(visualsBlob.AsSpan());
+                var result = Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(visualsBlob.AsSpan());
+                Serilog.Log.Information(
+                    "PAINT_DEBUG GetCurrentBattleframeVisuals: deserialized for char={CharId} — warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                    characterId,
+                    result?.warpaint_id ?? 0,
+                    result?.warpaint_patterns?.Count ?? 0,
+                    result?.decals?.Count ?? 0,
+                    result?.visual_overrides?.Count ?? 0);
+                return result;
             }
             catch (Exception ex)
             {
                 Serilog.Log.Error(ex, "Failed to deserialize battleframe visuals for character {characterId}", characterId);
                 return null;
             }
+        }
+
+        public async Task<Dictionary<int, (long BattleframeGuid, PlayerBattleframeVisuals Visuals)>> GetBattleframeVisualsByChassis(long characterId)
+        {
+            const string SELECT_SQL = @"SELECT id,
+                                               battleframe_sdb_id,
+                                               visuals,
+                                               (id = COALESCE((SELECT current_battleframe_guid
+                                                               FROM webapi.""Characters""
+                                                               WHERE character_guid = @characterId), 0)) AS is_current
+                                        FROM webapi.""Battleframes""
+                                        WHERE character_guid = @characterId";
+
+            var rows = await DBCall(conn => conn.QueryAsync<(long id, int battleframe_sdb_id, byte[] visuals, bool is_current)>(
+                SELECT_SQL,
+                new { characterId })) ?? Enumerable.Empty<(long id, int battleframe_sdb_id, byte[] visuals, bool is_current)>();
+
+            var result = new Dictionary<int, (long BattleframeGuid, PlayerBattleframeVisuals Visuals)>();
+            var selectedCurrentByChassis = new Dictionary<int, bool>();
+            foreach (var row in rows)
+            {
+                PlayerBattleframeVisuals visuals;
+                if (row.visuals != null && row.visuals.Length > 0)
+                {
+                    try
+                    {
+                        visuals = Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(row.visuals.AsSpan())
+                                  ?? PlayerBattleframeVisuals.CreateDefault();
+                    }
+                    catch (Exception ex)
+                    {
+                        Serilog.Log.Warning(ex,
+                            "PAINT_DEBUG GetBattleframeVisualsByChassis: failed to deserialize visuals for char={CharId}, battleframeGuid={BattleframeGuid}, chassis={ChassisSdbId}",
+                            characterId, row.id, row.battleframe_sdb_id);
+                        visuals = PlayerBattleframeVisuals.CreateDefault();
+                    }
+                }
+                else
+                {
+                    visuals = PlayerBattleframeVisuals.CreateDefault();
+                }
+
+                // If duplicates exist for a chassis, prefer the current battleframe row first,
+                // then the newest GUID row within the same priority.
+                if (!result.TryGetValue(row.battleframe_sdb_id, out var existing))
+                {
+                    result[row.battleframe_sdb_id] = (row.id, visuals);
+                    selectedCurrentByChassis[row.battleframe_sdb_id] = row.is_current;
+                    continue;
+                }
+
+                var existingIsCurrent = selectedCurrentByChassis.TryGetValue(row.battleframe_sdb_id, out var isCurrent)
+                    && isCurrent;
+                var shouldReplace = (row.is_current && !existingIsCurrent)
+                    || (row.is_current == existingIsCurrent && row.id > existing.BattleframeGuid);
+
+                if (shouldReplace)
+                {
+                    result[row.battleframe_sdb_id] = (row.id, visuals);
+                    selectedCurrentByChassis[row.battleframe_sdb_id] = row.is_current;
+                }
+            }
+
+            Serilog.Log.Information(
+                "PAINT_DEBUG GetBattleframeVisualsByChassis: char={CharId}, chassisCount={ChassisCount}",
+                characterId, result.Count);
+
+            return result;
+        }
+
+        public async Task<(long CurrentBattleframeGuid, int CurrentBattleframeSdbId)> GetCurrentBattleframeInfo(long characterId)
+        {
+            const string SELECT_SQL = @"SELECT
+                                            COALESCE(c.current_battleframe_guid, 0) AS CurrentBattleframeGuid,
+                                            COALESCE(bf.battleframe_sdb_id, 0) AS CurrentBattleframeSdbId
+                                        FROM webapi.""Characters"" c
+                                        LEFT JOIN webapi.""Battleframes"" bf ON bf.id = c.current_battleframe_guid
+                                        WHERE c.character_guid = @characterId";
+
+            var result = await DBCall(conn => conn.QueryFirstOrDefaultAsync<(long CurrentBattleframeGuid, int CurrentBattleframeSdbId)>(
+                SELECT_SQL,
+                new { characterId }));
+
+            return result;
         }
 
     }
