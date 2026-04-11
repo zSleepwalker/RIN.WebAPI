@@ -132,7 +132,27 @@ namespace RIN.Core.DB
                         charaterVisuals.ApplyToCharacterVisuals(character.visuals);
 
                         PlayerBattleframeVisuals battleframeVisuals = PlayerBattleframeVisuals.CreateDefault();
-                        if (result.battleframe_visuals is byte[] battleframeVisualBlob && battleframeVisualBlob.Length > 0)
+                        if (character.frame_sdb_id > 0)
+                        {
+                            try
+                            {
+                                var visualsByChassis = await GetBattleframeVisualsByChassis((long)result.character_guid);
+                                if (visualsByChassis.TryGetValue(character.frame_sdb_id, out var byChassis) && byChassis.Visuals != null)
+                                {
+                                    battleframeVisuals = byChassis.Visuals;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Serilog.Log.Warning(ex,
+                                    "PAINT_DEBUG CharactersList: failed chassis lookup for char={CharGuid}, frame={FrameSdbId}; falling back to current row blob",
+                                    (long)result.character_guid,
+                                    character.frame_sdb_id);
+                            }
+                        }
+
+                        if (battleframeVisuals.warpaint_id == PlayerBattleframeVisuals.CreateDefault().warpaint_id
+                            && result.battleframe_visuals is byte[] battleframeVisualBlob && battleframeVisualBlob.Length > 0)
                         {
                             try
                             {
@@ -148,7 +168,17 @@ namespace RIN.Core.DB
                             }
                         }
 
+                        await ApplyPaletteColorsToBattleframeVisuals(battleframeVisuals);
                         battleframeVisuals.ApplyToCharacterVisuals(character.visuals);
+
+                        Serilog.Log.Information(
+                            "PAINT_DEBUG CharactersList: char={CharGuid}, frame={FrameSdbId}, warpaintId={WarpaintId}, patternsCount={PatternsCount}, decalsCount={DecalsCount}, overridesCount={OverridesCount}",
+                            (long)result.character_guid,
+                            character.frame_sdb_id,
+                            battleframeVisuals.warpaint_id,
+                            battleframeVisuals.warpaint_patterns?.Count ?? 0,
+                            battleframeVisuals.decals?.Count ?? 0,
+                            battleframeVisuals.visual_overrides?.Count ?? 0);
                     }
 
                     chars.Add(character);
@@ -580,7 +610,7 @@ namespace RIN.Core.DB
                 SELECT
                     cl.loadout_id AS LoadoutId,
                     cl.battleframe_sdb_id AS ChassisSdbId,
-                    cl.visuals::text AS Visuals,
+                    '[]' AS Visuals,
                     COALESCE(bf.level, 1) AS Level,
                     COALESCE(bf.xp, 0) AS CurrentXp,
                     COALESCE(bf.xp, 0) AS LifetimeXp,
@@ -624,15 +654,14 @@ namespace RIN.Core.DB
                 await using var tx = hasAmbientTransaction ? null : await conn.BeginTransactionAsync();
 
                 const string UPSERT_LOADOUT_SQL = @"
-                    INSERT INTO webapi.""CharacterLoadouts"" (character_guid, loadout_id, battleframe_sdb_id, visuals, slotted_items)
-                    VALUES (@characterGuid, @loadoutId, @chassisSdbId, @visualsJson::jsonb, @slottedItemsJson::jsonb)
+                    INSERT INTO webapi.""CharacterLoadouts"" (character_guid, loadout_id, battleframe_sdb_id, slotted_items)
+                    VALUES (@characterGuid, @loadoutId, @chassisSdbId, @slottedItemsJson::jsonb)
                     ON CONFLICT (character_guid, loadout_id)
                     DO UPDATE SET
                         battleframe_sdb_id = EXCLUDED.battleframe_sdb_id,
-                        visuals = EXCLUDED.visuals,
                         slotted_items = EXCLUDED.slotted_items;";
 
-                await conn.ExecuteAsync(UPSERT_LOADOUT_SQL, new { characterGuid, loadoutId, chassisSdbId, visualsJson, slottedItemsJson }, tx);
+                await conn.ExecuteAsync(UPSERT_LOADOUT_SQL, new { characterGuid, loadoutId, chassisSdbId, slottedItemsJson }, tx);
 
                 var paintUpdate = TryBuildBattleframeVisualsFromLoadoutJson(visualsJson);
                 if (paintUpdate == null)
@@ -679,52 +708,13 @@ namespace RIN.Core.DB
                             battleframeId);
                                         }
 
+                    // Battleframe visuals are authoritative; each save replaces the latest frame paint state.
                     var paintVisuals = PlayerBattleframeVisuals.CreateDefault();
-                    if (battleframeId.HasValue && battleframeId.Value > 0)
-                    {
-                        var existingVisualsBlob = await conn.QueryFirstOrDefaultAsync<byte[]>(
-                            @"SELECT visuals
-                              FROM webapi.""Battleframes""
-                              WHERE id = @battleframeId;",
-                            new { battleframeId },
-                            tx);
-
-                        if (existingVisualsBlob != null && existingVisualsBlob.Length > 0)
-                        {
-                            try
-                            {
-                                paintVisuals = Utils.MiscUtils.FromProtoBuffByteArray<PlayerBattleframeVisuals>(existingVisualsBlob.AsSpan())
-                                    ?? PlayerBattleframeVisuals.CreateDefault();
-                            }
-                            catch
-                            {
-                                paintVisuals = PlayerBattleframeVisuals.CreateDefault();
-                            }
-                        }
-                    }
 
                     if (paintUpdate.HasPalette)
                     {
                         paintVisuals.warpaint_id = paintUpdate.WarpaintId;
-
-                        var colors = await conn.QueryFirstOrDefaultAsync<WarpaintColorsRow?>(
-                            @"SELECT
-                                  color1_highlight AS Color1Highlight,
-                                  color1_shadow AS Color1Shadow,
-                                  color2_highlight AS Color2Highlight,
-                                  color2_shadow AS Color2Shadow,
-                                  color3_highlight AS Color3Highlight,
-                                  color3_shadow AS Color3Shadow,
-                                  color4_highlight AS Color4Highlight
-                              FROM sdb.""dbvisualrecords::WarpaintPalette""
-                              WHERE id = @paletteId;",
-                            new { paletteId = paintUpdate.WarpaintId },
-                            tx);
-
-                        if (colors != null && paintUpdate.WarpaintId > 0)
-                        {
-                            paintVisuals.warpaint = colors.ToColorList();
-                        }
+                        await ApplyPaletteColorsToBattleframeVisuals(paintVisuals, conn, tx);
                     }
 
                     paintVisuals.warpaint_patterns = paintUpdate.WarpaintPatterns;
@@ -883,6 +873,38 @@ namespace RIN.Core.DB
             });
         }
 
+        private static LoadoutVisualDto[] NormalizeLatestVisualSelection(IEnumerable<LoadoutVisualDto> visuals)
+        {
+            var map = new Dictionary<(byte VisualType, uint Data1), LoadoutVisualDto>();
+
+            foreach (var visual in visuals ?? Enumerable.Empty<LoadoutVisualDto>())
+            {
+                if (visual == null)
+                {
+                    continue;
+                }
+
+                if (visual.ItemSdbId <= 0 || visual.VisualType == 0)
+                {
+                    continue;
+                }
+
+                map[(visual.VisualType, visual.Data1)] = new LoadoutVisualDto
+                {
+                    ItemSdbId = visual.ItemSdbId,
+                    VisualType = visual.VisualType,
+                    Data1 = visual.Data1,
+                    Data2 = visual.Data2,
+                    Transform = visual.Transform ?? Array.Empty<float>(),
+                };
+            }
+
+            return map.Values
+                .OrderBy(v => v.VisualType)
+                .ThenBy(v => v.Data1)
+                .ToArray();
+        }
+
         private static LoadoutPaintUpdate? TryBuildBattleframeVisualsFromLoadoutJson(string visualsJson)
         {
             if (string.IsNullOrWhiteSpace(visualsJson))
@@ -890,46 +912,47 @@ namespace RIN.Core.DB
                 return null;
             }
 
-            LoadoutVisualDto[]? visuals;
             try
             {
-                visuals = JsonSerializer.Deserialize<LoadoutVisualDto[]>(visualsJson);
+                var visuals = NormalizeLatestVisualSelection(JsonSerializer.Deserialize<LoadoutVisualDto[]>(visualsJson) ?? Array.Empty<LoadoutVisualDto>());
+
+                if (visuals.Length == 0 || !visuals.Any(v => v.VisualType is 9 or 10 or 11))
+                {
+                    return null;
+                }
+
+                var result = new LoadoutPaintUpdate();
+
+                var palette = visuals.LastOrDefault(v => v.VisualType == 9 && v.ItemSdbId > 0);
+                if (palette?.ItemSdbId > 0)
+                {
+                    result.HasPalette = true;
+                    result.WarpaintId = (int)palette.ItemSdbId;
+                }
+
+                result.WarpaintPatterns = visuals
+                    .Where(v => v.VisualType == 10 && v.ItemSdbId > 0)
+                    .OrderBy(v => v.Data1)
+                    .Select(v => (int)v.ItemSdbId)
+                    .ToList();
+
+                result.Decals = visuals
+                    .Where(v => v.VisualType == 11 && v.ItemSdbId > 0)
+                    .OrderBy(v => v.Data1)
+                    .Select(v => new WebDecal
+                    {
+                        sdb_id = (int)v.ItemSdbId,
+                        color = unchecked((int)v.Data2),
+                        transform = v.Transform ?? Array.Empty<float>()
+                    })
+                    .ToList();
+
+                return result;
             }
             catch
             {
                 return null;
             }
-
-            if (visuals == null || visuals.Length == 0 || !visuals.Any(v => v.VisualType is 9 or 10 or 11))
-            {
-                return null;
-            }
-
-            var result = new LoadoutPaintUpdate();
-
-            var palette = visuals.LastOrDefault(v => v.VisualType == 9 && v.ItemSdbId > 0);
-            if (palette?.ItemSdbId > 0)
-            {
-                result.HasPalette = true;
-                result.WarpaintId = (int)palette.ItemSdbId;
-            }
-
-            result.WarpaintPatterns = visuals
-                .Where(v => v.VisualType == 10 && v.ItemSdbId > 0)
-                .Select(v => (int)v.ItemSdbId)
-                .ToList();
-
-            result.Decals = visuals
-                .Where(v => v.VisualType == 11 && v.ItemSdbId > 0)
-                .Select(v => new WebDecal
-                {
-                    sdb_id = (int)v.ItemSdbId,
-                    color = unchecked((int)v.Data2),
-                    transform = v.Transform ?? Array.Empty<float>()
-                })
-                .ToList();
-
-            return result;
         }
 
         private sealed class LoadoutPaintUpdate
@@ -949,6 +972,52 @@ namespace RIN.Core.DB
             public float[]? Transform { get; set; }
         }
 
+        private async Task ApplyPaletteColorsToBattleframeVisuals(PlayerBattleframeVisuals visuals, IDbConnection? connection = null, IDbTransaction? transaction = null)
+        {
+            if (visuals == null || visuals.warpaint_id <= 0)
+            {
+                return;
+            }
+
+            const string SELECT_WARPAINT_COLORS_SQL = @"SELECT
+                      color1_highlight AS Color1Highlight,
+                      color1_shadow AS Color1Shadow,
+                      color2_highlight AS Color2Highlight,
+                      color2_shadow AS Color2Shadow,
+                      color3_highlight AS Color3Highlight,
+                      color3_shadow AS Color3Shadow,
+                      color4_highlight AS Color4Highlight,
+                      color4_shadow AS Color4Shadow,
+                      color5_highlight AS Color5Highlight,
+                      color5_shadow AS Color5Shadow,
+                      color6_highlight AS Color6Highlight,
+                      color6_shadow AS Color6Shadow,
+                      color7_highlight AS Color7Highlight,
+                      color7_shadow AS Color7Shadow
+                  FROM sdb.""dbvisualrecords::WarpaintPalette""
+                  WHERE id = @paletteId;";
+
+            WarpaintColorsRow? colors;
+            if (connection != null)
+            {
+                colors = await connection.QueryFirstOrDefaultAsync<WarpaintColorsRow?>(
+                    SELECT_WARPAINT_COLORS_SQL,
+                    new { paletteId = visuals.warpaint_id },
+                    transaction);
+            }
+            else
+            {
+                colors = await DBCall(conn => conn.QueryFirstOrDefaultAsync<WarpaintColorsRow?>(
+                    SELECT_WARPAINT_COLORS_SQL,
+                    new { paletteId = visuals.warpaint_id }));
+            }
+
+            if (colors != null)
+            {
+                visuals.warpaint = colors.ToColorList();
+            }
+        }
+
         private sealed class WarpaintColorsRow
         {
             public long Color1Highlight { get; set; }
@@ -958,18 +1027,25 @@ namespace RIN.Core.DB
             public long Color3Highlight { get; set; }
             public long Color3Shadow { get; set; }
             public long Color4Highlight { get; set; }
+            public long Color4Shadow { get; set; }
+            public long Color5Highlight { get; set; }
+            public long Color5Shadow { get; set; }
+            public long Color6Highlight { get; set; }
+            public long Color6Shadow { get; set; }
+            public long Color7Highlight { get; set; }
+            public long Color7Shadow { get; set; }
 
             public List<uint> ToColorList()
             {
                 return new List<uint>
                 {
-                    unchecked((uint)Color1Highlight),
-                    unchecked((uint)Color1Shadow),
-                    unchecked((uint)Color2Highlight),
-                    unchecked((uint)Color2Shadow),
-                    unchecked((uint)Color3Highlight),
-                    unchecked((uint)Color3Shadow),
-                    unchecked((uint)Color4Highlight),
+                    FColor.CombineLightDark(unchecked((uint)Color1Highlight), unchecked((uint)Color1Shadow)),
+                    FColor.CombineLightDark(unchecked((uint)Color2Highlight), unchecked((uint)Color2Shadow)),
+                    FColor.CombineLightDark(unchecked((uint)Color3Highlight), unchecked((uint)Color3Shadow)),
+                    FColor.CombineLightDark(unchecked((uint)Color4Highlight), unchecked((uint)Color4Shadow)),
+                    FColor.CombineLightDark(unchecked((uint)Color5Highlight), unchecked((uint)Color5Shadow)),
+                    FColor.CombineLightDark(unchecked((uint)Color6Highlight), unchecked((uint)Color6Shadow)),
+                    FColor.CombineLightDark(unchecked((uint)Color7Highlight), unchecked((uint)Color7Shadow)),
                 };
             }
         }

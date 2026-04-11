@@ -96,7 +96,7 @@ namespace RIN.InternalAPI.Services
                 {
                     LoadoutId = loadout.LoadoutId,
                     ChassisSdbId = loadout.ChassisSdbId,
-                    Visuals = NormalizeLoadoutVisuals(loadout.Visuals, battleframeVisualsEntry.Visuals),
+                    Visuals = BuildLoadoutVisuals(battleframeVisualsEntry.Visuals),
                     SlottedItems = loadout.SlottedItems,
                     Level = loadout.Level,
                     CurrentXp = loadout.CurrentXp,
@@ -120,35 +120,63 @@ namespace RIN.InternalAPI.Services
             return resp;
         }
 
-        private static string NormalizeLoadoutVisuals(string? rawVisualsJson, PlayerBattleframeVisuals? battleframeVisuals)
+        private static string BuildLoadoutVisuals(PlayerBattleframeVisuals? battleframeVisuals)
         {
-            if (battleframeVisuals == null || battleframeVisuals.warpaint_id <= 0)
+            if (battleframeVisuals == null)
             {
-                return string.IsNullOrWhiteSpace(rawVisualsJson) ? "[]" : rawVisualsJson;
+                return "[]";
             }
 
-            List<PersistedLoadoutVisual>? visuals;
-            try
+            var visuals = new List<PersistedLoadoutVisual>();
+
+            if (battleframeVisuals.warpaint_id > 0)
             {
-                visuals = string.IsNullOrWhiteSpace(rawVisualsJson)
-                    ? new List<PersistedLoadoutVisual>()
-                    : JsonSerializer.Deserialize<List<PersistedLoadoutVisual>>(rawVisualsJson);
-            }
-            catch
-            {
-                return string.IsNullOrWhiteSpace(rawVisualsJson) ? "[]" : rawVisualsJson;
+                visuals.Add(new PersistedLoadoutVisual
+                {
+                    ItemSdbId = (uint)battleframeVisuals.warpaint_id,
+                    VisualType = PersistedLoadoutVisual.PaletteVisualType,
+                    Data1 = 0,
+                    Data2 = 0,
+                    Transform = Array.Empty<float>(),
+                });
             }
 
-            visuals ??= new List<PersistedLoadoutVisual>();
-            visuals.RemoveAll(visual => visual.VisualType == PersistedLoadoutVisual.PaletteVisualType);
-            visuals.Add(new PersistedLoadoutVisual
+            var patterns = battleframeVisuals.warpaint_patterns ?? new List<int>();
+            for (int index = 0; index < patterns.Count; index++)
             {
-                ItemSdbId = (uint)battleframeVisuals.warpaint_id,
-                VisualType = PersistedLoadoutVisual.PaletteVisualType,
-                Data1 = 0,
-                Data2 = 0,
-                Transform = Array.Empty<float>(),
-            });
+                if (patterns[index] <= 0)
+                {
+                    continue;
+                }
+
+                visuals.Add(new PersistedLoadoutVisual
+                {
+                    ItemSdbId = (uint)patterns[index],
+                    VisualType = PersistedLoadoutVisual.PatternVisualType,
+                    Data1 = (uint)index,
+                    Data2 = 0,
+                    Transform = Array.Empty<float>(),
+                });
+            }
+
+            var decals = battleframeVisuals.decals ?? new List<RIN.Core.Models.ClientApi.WebDecal>();
+            for (int index = 0; index < decals.Count; index++)
+            {
+                var decal = decals[index];
+                if (decal == null || decal.sdb_id <= 0)
+                {
+                    continue;
+                }
+
+                visuals.Add(new PersistedLoadoutVisual
+                {
+                    ItemSdbId = (uint)decal.sdb_id,
+                    VisualType = PersistedLoadoutVisual.DecalVisualType,
+                    Data1 = (uint)index,
+                    Data2 = unchecked((uint)decal.color),
+                    Transform = decal.transform ?? Array.Empty<float>(),
+                });
+            }
 
             return JsonSerializer.Serialize(visuals);
         }
@@ -156,6 +184,8 @@ namespace RIN.InternalAPI.Services
         private sealed class PersistedLoadoutVisual
         {
             public const int PaletteVisualType = 9;
+            public const int PatternVisualType = 10;
+            public const int DecalVisualType = 11;
 
             public uint ItemSdbId { get; set; }
             public int VisualType { get; set; }

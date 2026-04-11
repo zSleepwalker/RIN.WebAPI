@@ -1079,7 +1079,6 @@ CREATE TABLE webapi."CharacterLoadouts" (
     character_guid bigint NOT NULL,
     loadout_id integer NOT NULL,
     battleframe_sdb_id integer NOT NULL,
-    visuals jsonb DEFAULT '{}'::jsonb NOT NULL,
     slotted_items jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
@@ -1090,7 +1089,7 @@ ALTER TABLE webapi."CharacterLoadouts" OWNER TO tmwadmin;
 -- Name: TABLE "CharacterLoadouts"; Type: COMMENT; Schema: webapi; Owner: tmwadmin
 --
 
-COMMENT ON TABLE webapi."CharacterLoadouts" IS 'Persistent storage for user loadouts, including gear and visual overrides.';
+COMMENT ON TABLE webapi."CharacterLoadouts" IS 'Persistent storage for user loadouts, including equipped/slotted items and chassis selection.';
 
 
 --
