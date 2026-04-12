@@ -47,7 +47,9 @@ namespace RIN.WebAPI.Controllers
             var result = await Db.GetBasicCharacterAndVisualData(cid);
             if (result.info == null) return NotFound();
 
-            var mtx = await Db.GetAccountMTXData(long.Parse(GetUid()));
+            var uid = GetUid();
+            var login = await Db.GetLoginData(uid);
+            var mtx = login == null ? null : await Db.GetAccountMTXData(login.account_id);
 
             return new
             {

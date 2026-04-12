@@ -25,11 +25,40 @@ namespace RIN.WebAPI.Controllers
                 return ReturnError(Error.Codes.ERR_UNKNOWN, "Invalid battleframe id", StatusCodes.Status400BadRequest);
             }
 
+            var currencyType = ParseCurrencyType(body);
+            var saleEntry = CreateBattleframeSaleEntry(frameSdbId);
+
             var loadouts = (await Db.GetCharacterLoadouts(characterGuid)).ToList();
             if (loadouts.Any(l => l.ChassisSdbId == frameSdbId))
             {
                 await Db.EnsureBattleframeRecord(characterGuid, frameSdbId);
                 return ReturnError(Error.Codes.ERR_UNKNOWN, "Battleframe already owned", StatusCodes.Status400BadRequest);
+            }
+
+            // Apply purchase cost before creating the loadout to prevent free unlock paths.
+            if (!saleEntry.unlocked)
+            {
+                if (currencyType == "redbean")
+                {
+                    var spendResult = await Db.SpendRedBeans(await GetAid(), saleEntry.redbean);
+                    if (!spendResult.success)
+                    {
+                        return ReturnError(Error.Codes.ERR_UNKNOWN, spendResult.error, StatusCodes.Status400BadRequest);
+                    }
+                }
+                else if (currencyType == "battleframe_token")
+                {
+                    const int PilotTokenSdbId = 78038;
+                    var consumed = await Db.ConsumeCharacterItem(characterGuid, PilotTokenSdbId, saleEntry.battleframe_token);
+                    if (!consumed)
+                    {
+                        return ReturnError(Error.Codes.ERR_UNKNOWN, "Not enough pilot tokens", StatusCodes.Status400BadRequest);
+                    }
+                }
+                else
+                {
+                    return ReturnError(Error.Codes.ERR_UNKNOWN, "Unsupported currency type", StatusCodes.Status400BadRequest);
+                }
             }
 
             int nextLoadoutId = loadouts.Count == 0 ? 1 : loadouts.Max(l => l.LoadoutId) + 1;
@@ -42,6 +71,28 @@ namespace RIN.WebAPI.Controllers
             await Db.SetCharacterCurrentBattleframeBySdbId(characterGuid, frameSdbId);
 
             return Content("{}", "application/json");
+        }
+
+        private static string ParseCurrencyType(JsonElement? body)
+        {
+            if (body == null || body.Value.ValueKind != JsonValueKind.Object)
+            {
+                return "redbean";
+            }
+
+            if (!body.Value.TryGetProperty("currency_type", out var currencyElement)
+                || currencyElement.ValueKind != JsonValueKind.String)
+            {
+                return "redbean";
+            }
+
+            var raw = (currencyElement.GetString() ?? string.Empty).Trim().ToLowerInvariant();
+            return raw switch
+            {
+                "redbean" or "redbeans" => "redbean",
+                "battleframe_token" or "battleframe_tokens" or "pilot_token" or "pilot_tokens" => "battleframe_token",
+                _ => raw,
+            };
         }
 
         [HttpPost("characters/{characterGuid}/garage_slots/unlock_slot")]
